@@ -289,6 +289,7 @@ def kf_iou(obb1, obb2, func="exp", eps=1e-7, beta=1.0 / 9.0):
     _, sigma_p =_get_covariance_matrix_kfiou(obb1)
     sigma_p = sigma_p.float()
     _, sigma_t =_get_covariance_matrix_kfiou(obb2)
+    sigma_t = sigma_t.float()
     ## Volume of obb
     Vb_p = 4 * sigma_p.det().sqrt().view(-1,1) # Vb_p = 4(det(Σ_p))^(1/2)
     Vb_t = 4 * sigma_t.det().sqrt().view(-1,1)
