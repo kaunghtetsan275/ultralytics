@@ -261,7 +261,7 @@ def _get_covariance_matrix_kfiou(xywhr):
     return xy, sigma
 
 
-def kfiou(obb1, obb2, func="exp", eps=1e-7, beta=1.0 / 9.0):
+def kf_iou(obb1, obb2, func="exp", eps=1e-7, beta=1.0 / 9.0):
     """
     Calculate KFIoU between oriented bounding boxes.
 
