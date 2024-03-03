@@ -244,12 +244,12 @@ def _get_covariance_matrix_kfiou(xywhr):
             with shape (N, 2, 2).
     """
     _shape = xywhr.shape
-    print("bbox size", xywhr.size())
+    # print("bbox size", xywhr.size())
     assert _shape[-1] == 5
     xy = xywhr[..., :2]
     wh = xywhr[..., 2:4].clamp(min=1e-7, max=1e7).reshape(-1, 2)
     r = xywhr[..., 4:]
-    print("angle size", r.size())
+    # print("angle size", r.size())
     cos_r = torch.cos(r)
     sin_r = torch.sin(r)
     R = torch.stack((cos_r, -sin_r, sin_r, cos_r), dim=-1).reshape(-1, 2, 2)
