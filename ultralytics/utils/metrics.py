@@ -231,6 +231,76 @@ def probiou(obb1, obb2, CIoU=False, eps=1e-7):
     return iou
 
 
+def _get_covariance_matrix_kfiou(xywhr):
+    """Convert oriented bounding box to 2-D Gaussian distribution.
+
+    Args:
+        xywhr (torch.Tensor): rbboxes with shape (N, 5).
+
+    Returns:
+        xy (torch.Tensor): center point of 2-D Gaussian distribution
+            with shape (N, 2).
+        sigma (torch.Tensor): covariance matrix of 2-D Gaussian distribution
+            with shape (N, 2, 2).
+    """
+    _shape = xywhr.shape
+    print("bbox size", xywhr.size())
+    assert _shape[-1] == 5
+    xy = xywhr[..., :2]
+    wh = xywhr[..., 2:4].clamp(min=1e-7, max=1e7).reshape(-1, 2)
+    r = xywhr[..., 4:]
+    print("angle size", r.size())
+    cos_r = torch.cos(r)
+    sin_r = torch.sin(r)
+    R = torch.stack((cos_r, -sin_r, sin_r, cos_r), dim=-1).reshape(-1, 2, 2)
+    S = 0.5 * torch.diag_embed(wh)
+
+    sigma = R.bmm(S.square()).bmm(R.permute(0, 2,
+                                            1)).reshape(_shape[:-1] + (2, 2))
+
+    return xy, sigma
+
+
+def kfiou(obb1, obb2, func="exp", eps=1e-7, beta=1.0 / 9.0):
+    """
+    Calculate KFIoU between oriented bounding boxes.
+
+    Args:
+        obb1 (torch.Tensor | np.ndarray): A tensor of shape (N, 5) representing ground truth obbs, with xywhr format.
+        obb2 (torch.Tensor | np.ndarray): A tensor of shape (M, 5) representing predicted obbs, with xywhr format.
+        eps (float, optional): A small value to avoid division by zero. Defaults to 1e-7.
+
+    Returns:
+        (torch.Tensor): A tensor of shape (N, M) representing obb similarities.
+    """
+    # L_reg = L_center + L_KFIoU
+
+    # L_center loss
+    xy_t = obb1[..., :2] # target xy
+    xy_p = obb2[..., :2] # predicted xy
+
+    ## Smooth-L1 norm
+    diff = torch.abs(xy_p - xy_t)
+    xy_loss = torch.where(diff < beta, 0.5 * diff * diff / beta,
+                          diff - 0.5 * beta).sum(dim=-1)
+    
+    # L_KFIoU loss
+    ## 2D Gaussian distribution of obb from xywhr
+    _, sigma_p =_get_covariance_matrix_kfiou(obb1)
+    sigma_p = sigma_p.float()
+    _, sigma_t =_get_covariance_matrix_kfiou(obb2)
+    ## Volume of obb
+    Vb_p = 4 * sigma_p.det().sqrt().view(-1,1) # Vb_p = 4(det(Σ_p))^(1/2)
+    Vb_t = 4 * sigma_t.det().sqrt().view(-1,1)
+    K = sigma_p.bmm((sigma_p + sigma_t).inverse()) # Kalman gain
+    sigma = sigma_p - K.bmm(sigma_p) # updated covariance matrix using Kalman gain
+    ## Volume of updated obb
+    Vb = 4 * sigma.det().sqrt().view(-1,1)
+    Vb = torch.where(torch.isnan(Vb), torch.full_like(Vb, 0), Vb) # replace Nan with 0
+    
+    kf_iou = Vb / (Vb_p + Vb_t - Vb + eps) # KFIoU
+    return kf_iou
+
 def batch_probiou(obb1, obb2, eps=1e-7):
     """
     Calculate the prob IoU between oriented bounding boxes, https://arxiv.org/pdf/2106.06072v1.pdf.

@@ -7,7 +7,7 @@ import torch.nn.functional as F
 from ultralytics.utils.metrics import OKS_SIGMA
 from ultralytics.utils.ops import crop_mask, xywh2xyxy, xyxy2xywh
 from ultralytics.utils.tal import RotatedTaskAlignedAssigner, TaskAlignedAssigner, dist2bbox, dist2rbox, make_anchors
-from .metrics import bbox_iou, probiou
+from .metrics import bbox_iou, probiou, kf_iou
 from .tal import bbox2dist
 
 
@@ -106,14 +106,18 @@ class BboxLoss(nn.Module):
 class RotatedBboxLoss(BboxLoss):
     """Criterion class for computing training losses during training."""
 
-    def __init__(self, reg_max, use_dfl=False):
+    def __init__(self, reg_max, use_dfl=False, angle_loss_type="kfiou"):
         """Initialize the BboxLoss module with regularization maximum and DFL settings."""
         super().__init__(reg_max, use_dfl)
+        self.angle_loss_type = angle_loss_type
 
     def forward(self, pred_dist, pred_bboxes, anchor_points, target_bboxes, target_scores, target_scores_sum, fg_mask):
         """IoU loss."""
         weight = target_scores.sum(-1)[fg_mask].unsqueeze(-1)
-        iou = probiou(pred_bboxes[fg_mask], target_bboxes[fg_mask])
+        if self.angle_loss_type == "kfiou":
+            iou = kf_iou(pred_bboxes[fg_mask], target_bboxes[fg_mask])
+        else:
+            iou = probiou(pred_bboxes[fg_mask], target_bboxes[fg_mask])
         loss_iou = ((1.0 - iou) * weight).sum() / target_scores_sum
 
         # DFL loss
