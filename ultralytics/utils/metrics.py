@@ -309,7 +309,7 @@ def _get_covariance_matrix_kfiou(xywhr):
 
 # https://arxiv.org/pdf/2201.12558.pdf
 # https://github.com/open-mmlab/mmrotate/blob/main/mmrotate/models/losses/kf_iou_loss.py
-def kfiou(obb1, obb2, func="vanilla", eps=1e-7, beta=1.0 / 9.0):
+def kfiou(obb1, obb2, func="vanilla", eps=1e-7, beta=1.0):
     """
     Calculate KFIoU between oriented bounding boxes.
 

@@ -140,8 +140,10 @@ class RotatedBboxLoss(BboxLoss):
             loss_iou = loss_iou.sum()
             loss_iou = loss_iou / target_scores_sum
         else:
+            beta = 0.5
             iou = probiou(obb1, obb2)
             loss_iou = 1.0 - iou # vanilla loss [524, 1]
+            loss_iou = torch.where(loss_iou < beta, 0.25 * loss_iou * loss_iou / beta, loss_iou - 0.75 * beta)
             loss_iou = loss_iou * weight # weighted loss: each instance has different weight
             loss_iou = loss_iou.sum() # sum of weighted loss: total loss of all instances [Scalar Tensor]
             loss_iou = loss_iou / target_scores_sum # average loss: average loss of all instances.
