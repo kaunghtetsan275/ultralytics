@@ -124,8 +124,6 @@ class RotatedBboxLoss(BboxLoss):
 
         obb1 = target_bboxes[fg_mask]
         obb2 = pred_bboxes[fg_mask]
-        torch.save(obb1, 'obb1.pt')
-        torch.save(obb2, 'obb2.pt')
 
         # boss loss
         if LossFunction.loss=='kfiou':
