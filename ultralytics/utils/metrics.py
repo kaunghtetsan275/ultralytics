@@ -5,11 +5,12 @@ import math
 import warnings
 from pathlib import Path
 
+from rotated_iou.oriented_iou_loss import cal_iou, cal_diou, cal_giou
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
 
-from ultralytics.utils import LOGGER, SimpleClass, TryExcept, plt_settings
+from ultralytics.utils import LOGGER, SimpleClass, TryExcept, plt_settings, LossFunction
 
 OKS_SIGMA = (
     np.array([0.26, 0.25, 0.25, 0.35, 0.35, 0.79, 0.79, 0.72, 0.72, 0.62, 0.62, 1.07, 1.07, 0.87, 0.87, 0.89, 0.89])
@@ -24,7 +25,7 @@ def bbox_ioa(box1, box2, iou=False, eps=1e-7):
     Args:
         box1 (np.ndarray): A numpy array of shape (n, 4) representing n bounding boxes.
         box2 (np.ndarray): A numpy array of shape (m, 4) representing m bounding boxes.
-        iou (bool): Calculate the standard IoU if True else return inter_area/box2_area.
+        iou (bool): Calculate the standard iou if True else return inter_area/box2_area.
         eps (float, optional): A small value to avoid division by zero. Defaults to 1e-7.
 
     Returns:
@@ -116,12 +117,10 @@ def bbox_iou(box1, box2, xywh=True, GIoU=False, DIoU=False, CIoU=False, eps=1e-7
         cw = b1_x2.maximum(b2_x2) - b1_x1.minimum(b2_x1)  # convex (smallest enclosing box) width
         ch = b1_y2.maximum(b2_y2) - b1_y1.minimum(b2_y1)  # convex height
         if CIoU or DIoU:  # Distance or Complete IoU https://arxiv.org/abs/1911.08287v1
-            c2 = cw.pow(2) + ch.pow(2) + eps  # convex diagonal squared
-            rho2 = (
-                (b2_x1 + b2_x2 - b1_x1 - b1_x2).pow(2) + (b2_y1 + b2_y2 - b1_y1 - b1_y2).pow(2)
-            ) / 4  # center dist**2
+            c2 = cw**2 + ch**2 + eps  # convex diagonal squared
+            rho2 = ((b2_x1 + b2_x2 - b1_x1 - b1_x2) ** 2 + (b2_y1 + b2_y2 - b1_y1 - b1_y2) ** 2) / 4  # center dist ** 2
             if CIoU:  # https://github.com/Zzh-tju/DIoU-SSD-pytorch/blob/master/utils/box/box_utils.py#L47
-                v = (4 / math.pi**2) * ((w2 / h2).atan() - (w1 / h1).atan()).pow(2)
+                v = (4 / math.pi**2) * (torch.atan(w2 / h2) - torch.atan(w1 / h1)).pow(2)
                 with torch.no_grad():
                     alpha = v / (v - iou + (1 + eps))
                 return iou - (rho2 / c2 + v * alpha)  # CIoU
@@ -164,12 +163,12 @@ def kpt_iou(kpt1, kpt2, area, sigma, eps=1e-7):
     Returns:
         (torch.Tensor): A tensor of shape (N, M) representing keypoint similarities.
     """
-    d = (kpt1[:, None, :, 0] - kpt2[..., 0]).pow(2) + (kpt1[:, None, :, 1] - kpt2[..., 1]).pow(2)  # (N, M, 17)
+    d = (kpt1[:, None, :, 0] - kpt2[..., 0]) ** 2 + (kpt1[:, None, :, 1] - kpt2[..., 1]) ** 2  # (N, M, 17)
     sigma = torch.tensor(sigma, device=kpt1.device, dtype=kpt1.dtype)  # (17, )
     kpt_mask = kpt1[..., 2] != 0  # (N, 17)
-    e = d / (2 * sigma).pow(2) / (area[:, None, None] + eps) / 2  # from cocoeval
+    e = d / (2 * sigma) ** 2 / (area[:, None, None] + eps) / 2  # from cocoeval
     # e = d / ((area[None, :, None] + eps) * sigma) ** 2 / 2  # from formula
-    return ((-e).exp() * kpt_mask[:, None]).sum(-1) / (kpt_mask.sum(-1)[:, None] + eps)
+    return (torch.exp(-e) * kpt_mask[:, None]).sum(-1) / (kpt_mask.sum(-1)[:, None] + eps)
 
 
 def _get_covariance_matrix(boxes):
@@ -183,18 +182,18 @@ def _get_covariance_matrix(boxes):
         (torch.Tensor): Covariance metrixs corresponding to original rotated bounding boxes.
     """
     # Gaussian bounding boxes, ignore the center points (the first two columns) because they are not needed here.
-    gbbs = torch.cat((boxes[:, 2:4].pow(2) / 12, boxes[:, 4:]), dim=-1)
+    gbbs = torch.cat((torch.pow(boxes[:, 2:4], 2) / 12, boxes[:, 4:]), dim=-1)
     a, b, c = gbbs.split(1, dim=-1)
-    cos = c.cos()
-    sin = c.sin()
-    cos2 = cos.pow(2)
-    sin2 = sin.pow(2)
-    return a * cos2 + b * sin2, a * sin2 + b * cos2, (a - b) * cos * sin
+    return (
+        a * torch.cos(c) ** 2 + b * torch.sin(c) ** 2,
+        a * torch.sin(c) ** 2 + b * torch.cos(c) ** 2,
+        a * torch.cos(c) * torch.sin(c) - b * torch.sin(c) * torch.cos(c),
+    )
 
 
-def probiou(obb1, obb2, CIoU=False, eps=1e-7):
+def probiou(obb1, obb2, CIoU=False, eps=1e-7, TAL_FLAG=False):
     """
-    Calculate the prob IoU between oriented bounding boxes, https://arxiv.org/pdf/2106.06072v1.pdf.
+    Calculate the prob iou between oriented bounding boxes, https://arxiv.org/pdf/2106.06072v1.pdf.
 
     Args:
         obb1 (torch.Tensor): A tensor of shape (N, 5) representing ground truth obbs, with xywhr format.
@@ -206,31 +205,79 @@ def probiou(obb1, obb2, CIoU=False, eps=1e-7):
     """
     x1, y1 = obb1[..., :2].split(1, dim=-1)
     x2, y2 = obb2[..., :2].split(1, dim=-1)
+    # print("x1, y1", x1.dtype, y1.dtype)
+    # print("x2, y2", x2.dtype, y2.dtype)
     a1, b1, c1 = _get_covariance_matrix(obb1)
-    a2, b2, c2 = _get_covariance_matrix(obb2)
+    a2, b2, c2 = _get_covariance_matrix(obb2) 
 
     t1 = (
-        ((a1 + a2) * (y1 - y2).pow(2) + (b1 + b2) * (x1 - x2).pow(2)) / ((a1 + a2) * (b1 + b2) - (c1 + c2).pow(2) + eps)
+        ((a1 + a2) * (torch.pow(y1 - y2, 2)) + (b1 + b2) * (torch.pow(x1 - x2, 2)))
+        / ((a1 + a2) * (b1 + b2) - (torch.pow(c1 + c2, 2)) + eps)
     ) * 0.25
-    t2 = (((c1 + c2) * (x2 - x1) * (y1 - y2)) / ((a1 + a2) * (b1 + b2) - (c1 + c2).pow(2) + eps)) * 0.5
+    t2 = (((c1 + c2) * (x2 - x1) * (y1 - y2)) / ((a1 + a2) * (b1 + b2) - (torch.pow(c1 + c2, 2)) + eps)) * 0.5
     t3 = (
-        ((a1 + a2) * (b1 + b2) - (c1 + c2).pow(2))
-        / (4 * ((a1 * b1 - c1.pow(2)).clamp_(0) * (a2 * b2 - c2.pow(2)).clamp_(0)).sqrt() + eps)
-        + eps
-    ).log() * 0.5
-    bd = (t1 + t2 + t3).clamp(eps, 100.0)
-    hd = (1.0 - (-bd).exp() + eps).sqrt()
+        torch.log(
+            ((a1 + a2) * (b1 + b2) - (torch.pow(c1 + c2, 2)))
+            / (4 * torch.sqrt((a1 * b1 - torch.pow(c1, 2)).clamp_(0) * (a2 * b2 - torch.pow(c2, 2)).clamp_(0)) + eps)
+            + eps
+        )
+        * 0.5
+    )
+    bd = t1 + t2 + t3
+    bd = torch.clamp(bd, eps, 100.0)
+    hd = torch.sqrt(1.0 - torch.exp(-bd) + eps)
     iou = 1 - hd
     if CIoU:  # only include the wh aspect ratio part
         w1, h1 = obb1[..., 2:4].split(1, dim=-1)
         w2, h2 = obb2[..., 2:4].split(1, dim=-1)
-        v = (4 / math.pi**2) * ((w2 / h2).atan() - (w1 / h1).atan()).pow(2)
+        v = (4 / math.pi**2) * (torch.atan(w2 / h2) - torch.atan(w1 / h1)).pow(2)
         with torch.no_grad():
             alpha = v / (v - iou + (1 + eps))
         return iou - v * alpha  # CIoU
     return iou
 
 
+def batch_probiou(obb1, obb2, eps=1e-7):    
+    """
+    Calculate the prob iou between oriented bounding boxes, https://arxiv.org/pdf/2106.06072v1.pdf.
+
+    Args:
+        obb1 (torch.Tensor | np.ndarray): A tensor of shape (N, 5) representing ground truth obbs, with xywhr format.
+        obb2 (torch.Tensor | np.ndarray): A tensor of shape (M, 5) representing predicted obbs, with xywhr format.
+        eps (float, optional): A small value to avoid division by zero. Defaults to 1e-7.
+
+    Returns:
+        (torch.Tensor): A tensor of shape (N, M) representing obb similarities.
+    """
+    # everything is the same as probiou except for the prediction obb because it's a batch
+    # difference is when obb1 shape is [525, 5] obb2 shape could be [1112, 5] ...
+    obb1 = torch.from_numpy(obb1) if isinstance(obb1, np.ndarray) else obb1
+    obb2 = torch.from_numpy(obb2) if isinstance(obb2, np.ndarray) else obb2
+
+    x1, y1 = obb1[..., :2].split(1, dim=-1)
+    x2, y2 = (x.squeeze(-1)[None] for x in obb2[..., :2].split(1, dim=-1))
+    a1, b1, c1 = _get_covariance_matrix(obb1)
+    a2, b2, c2 = (x.squeeze(-1)[None] for x in _get_covariance_matrix(obb2))
+
+    t1 = (
+        ((a1 + a2) * (torch.pow(y1 - y2, 2)) + (b1 + b2) * (torch.pow(x1 - x2, 2)))
+        / ((a1 + a2) * (b1 + b2) - (torch.pow(c1 + c2, 2)) + eps)
+    ) * 0.25
+    t2 = (((c1 + c2) * (x2 - x1) * (y1 - y2)) / ((a1 + a2) * (b1 + b2) - (torch.pow(c1 + c2, 2)) + eps)) * 0.5
+    t3 = (
+        torch.log(
+            ((a1 + a2) * (b1 + b2) - (torch.pow(c1 + c2, 2)))
+            / (4 * torch.sqrt((a1 * b1 - torch.pow(c1, 2)).clamp_(0) * (a2 * b2 - torch.pow(c2, 2)).clamp_(0)) + eps)
+            + eps
+        )
+        * 0.5
+    )
+    bd = t1 + t2 + t3
+    bd = torch.clamp(bd, eps, 100.0)
+    hd = torch.sqrt(1.0 - torch.exp(-bd) + eps)
+    return 1 - hd
+
+# REVIEW: this is actually the same as get_covariance_matrix. should i keep this?
 def _get_covariance_matrix_kfiou(xywhr):
     """Convert oriented bounding box to 2-D Gaussian distribution.
 
@@ -244,24 +291,25 @@ def _get_covariance_matrix_kfiou(xywhr):
             with shape (N, 2, 2).
     """
     _shape = xywhr.shape
-    # print("bbox size", xywhr.size())
     assert _shape[-1] == 5
     xy = xywhr[..., :2]
     wh = xywhr[..., 2:4].clamp(min=1e-7, max=1e7).reshape(-1, 2)
-    r = xywhr[..., 4:]
-    # print("angle size", r.size())
+    r = xywhr[..., 4]
     cos_r = torch.cos(r)
     sin_r = torch.sin(r)
+    # rotation matrix
     R = torch.stack((cos_r, -sin_r, sin_r, cos_r), dim=-1).reshape(-1, 2, 2)
-    S = 0.5 * torch.diag_embed(wh)
+    S = torch.pow(torch.diag_embed(wh),2)/12
+    R_t = torch.transpose(R, 1, 2)
+    RS = torch.matmul(R,S)
+    RSR_t = torch.matmul(RS,R_t)
+    # sigma = R.bmm(S.square()).bmm(R.permute(0, 2, 1)).reshape(_shape[:-1] + (2, 2))
+    # return xy, sigma
+    return xy, RSR_t
 
-    sigma = R.bmm(S.square()).bmm(R.permute(0, 2,
-                                            1)).reshape(_shape[:-1] + (2, 2))
-
-    return xy, sigma
-
-
-def kf_iou(obb1, obb2, func="exp", eps=1e-7, beta=1.0 / 9.0):
+# https://arxiv.org/pdf/2201.12558.pdf
+# https://github.com/open-mmlab/mmrotate/blob/main/mmrotate/models/losses/kf_iou_loss.py
+def kfiou(obb1, obb2, func="vanilla", eps=1e-7, beta=1.0 / 9.0):
     """
     Calculate KFIoU between oriented bounding boxes.
 
@@ -272,70 +320,64 @@ def kf_iou(obb1, obb2, func="exp", eps=1e-7, beta=1.0 / 9.0):
 
     Returns:
         (torch.Tensor): A tensor of shape (N, M) representing obb similarities.
-    """
-    # L_reg = L_center + L_KFIoU
+    """    
+    xy_p = obb2[:, :2]
+    xy_t = obb1[:, :2]
 
-    # L_center loss
-    xy_t = obb1[..., :2] # target xy
-    xy_p = obb2[..., :2] # predicted xy
-
-    ## Smooth-L1 norm
-    diff = torch.abs(xy_p - xy_t)
-    xy_loss = torch.where(diff < beta, 0.5 * diff * diff / beta,
-                          diff - 0.5 * beta).sum(dim=-1)
-    
-    # L_KFIoU loss
     ## 2D Gaussian distribution of obb from xywhr
     _, sigma_p =_get_covariance_matrix_kfiou(obb1)
     sigma_p = sigma_p.float()
     _, sigma_t =_get_covariance_matrix_kfiou(obb2)
     sigma_t = sigma_t.float()
+
+    # Smooth-L1 norm
+    diff = torch.abs(xy_p - xy_t)
+    xy_loss = torch.where(diff < beta, 0.5 * diff * diff / beta,
+                          diff - 0.5 * beta).sum(dim=-1)
+    xy_loss = xy_loss.view(-1,1).float()
+
     ## Volume of obb
-    Vb_p = 4 * sigma_p.det().sqrt().view(-1,1) # Vb_p = 4(det(Σ_p))^(1/2)
+    Vb_p = 4 * sigma_p.det().sqrt().view(-1,1)
     Vb_t = 4 * sigma_t.det().sqrt().view(-1,1)
-    K = sigma_p.bmm((sigma_p + sigma_t).inverse()) # Kalman gain
-    sigma = sigma_p - K.bmm(sigma_p) # updated covariance matrix using Kalman gain
+    sigma_joint_inv = (sigma_p + sigma_t).inverse()
+    # K = sigma_p.bmm(sigma_joint_inv) # Kalman gain
+    K = torch.matmul(sigma_p,sigma_joint_inv) # Kalman gain
+    # sigma = sigma_p - K.bmm(sigma_p) # updated covariance matrix using Kalman gain
+    sigma = sigma_p - torch.matmul(K,sigma_p)
     ## Volume of updated obb
-    Vb = 4 * sigma.det().sqrt().view(-1,1)
+    Vb = 4 * sigma.det().sqrt().view(-1,1).float()
     Vb = torch.where(torch.isnan(Vb), torch.full_like(Vb, 0), Vb) # replace Nan with 0
+    # mean vector
+    # xy = xy_t + torch.matmul((xy_p-xy_t),K)
     
     kf_iou = Vb / (Vb_p + Vb_t - Vb + eps) # KFIoU
-    return kf_iou
 
-def batch_probiou(obb1, obb2, eps=1e-7):
-    """
-    Calculate the prob IoU between oriented bounding boxes, https://arxiv.org/pdf/2106.06072v1.pdf.
+    if func == "exp":
+        kfiou_loss = torch.exp(1 - kf_iou) - 1
+    elif func == "ln":
+        kfiou_loss = -torch.log(kf_iou + eps)
+    else:
+        kfiou_loss = 1 - kf_iou
+    
+    # L_reg loss
+    loss = xy_loss + kfiou_loss
+    return loss
 
-    Args:
-        obb1 (torch.Tensor | np.ndarray): A tensor of shape (N, 5) representing ground truth obbs, with xywhr format.
-        obb2 (torch.Tensor | np.ndarray): A tensor of shape (M, 5) representing predicted obbs, with xywhr format.
-        eps (float, optional): A small value to avoid division by zero. Defaults to 1e-7.
+def rotated_iou(obb1, obb2):
+    obb1, obb2 = obb1.unsqueeze(0), obb2.unsqueeze(0)
+    iou, _,_,_ = cal_iou(obb1, obb2)
+    iou = iou.permute(1,0)
+    return iou
 
-    Returns:
-        (torch.Tensor): A tensor of shape (N, M) representing obb similarities.
-    """
-    obb1 = torch.from_numpy(obb1) if isinstance(obb1, np.ndarray) else obb1
-    obb2 = torch.from_numpy(obb2) if isinstance(obb2, np.ndarray) else obb2
-
-    x1, y1 = obb1[..., :2].split(1, dim=-1)
-    x2, y2 = (x.squeeze(-1)[None] for x in obb2[..., :2].split(1, dim=-1))
-    a1, b1, c1 = _get_covariance_matrix(obb1)
-    a2, b2, c2 = (x.squeeze(-1)[None] for x in _get_covariance_matrix(obb2))
-
-    t1 = (
-        ((a1 + a2) * (y1 - y2).pow(2) + (b1 + b2) * (x1 - x2).pow(2)) / ((a1 + a2) * (b1 + b2) - (c1 + c2).pow(2) + eps)
-    ) * 0.25
-    t2 = (((c1 + c2) * (x2 - x1) * (y1 - y2)) / ((a1 + a2) * (b1 + b2) - (c1 + c2).pow(2) + eps)) * 0.5
-    t3 = (
-        ((a1 + a2) * (b1 + b2) - (c1 + c2).pow(2))
-        / (4 * ((a1 * b1 - c1.pow(2)).clamp_(0) * (a2 * b2 - c2.pow(2)).clamp_(0)).sqrt() + eps)
-        + eps
-    ).log() * 0.5
-    bd = (t1 + t2 + t3).clamp(eps, 100.0)
-    hd = (1.0 - (-bd).exp() + eps).sqrt()
-    return 1 - hd
-
-
+def giou_loss(obb1, obb2):
+    pass
+    
+def diou_loss(obb1, obb2):
+    obb1, obb2 = obb1.unsqueeze(0), obb2.unsqueeze(0)
+    dloss, _ = cal_diou(obb1, obb2)
+    dloss = dloss.permute(1,0)
+    return dloss
+    
 def smooth_BCE(eps=0.1):
     """
     Computes smoothed positive and negative Binary Cross-Entropy targets.
@@ -350,7 +392,6 @@ def smooth_BCE(eps=0.1):
         (tuple): A tuple containing the positive and negative label smoothing BCE targets.
     """
     return 1.0 - 0.5 * eps, 0.5 * eps
-
 
 class ConfusionMatrix:
     """
@@ -413,10 +454,10 @@ class ConfusionMatrix:
         detection_classes = detections[:, 5].int()
         is_obb = detections.shape[1] == 7 and gt_bboxes.shape[1] == 5  # with additional `angle` dimension
         iou = (
-            batch_probiou(gt_bboxes, torch.cat([detections[:, :4], detections[:, -1:]], dim=-1))
-            if is_obb
-            else box_iou(gt_bboxes, detections[:, :4])
-        )
+                batch_probiou(gt_bboxes, torch.cat([detections[:, :4], detections[:, -1:]], dim=-1))
+                if is_obb
+                else box_iou(gt_bboxes, detections[:, :4])
+            )
 
         x = torch.where(iou > self.iou_thres)
         if x[0].shape[0]:

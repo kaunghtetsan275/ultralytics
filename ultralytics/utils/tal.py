@@ -6,6 +6,7 @@ import torch.nn as nn
 from .checks import check_version
 from .metrics import bbox_iou, probiou
 from .ops import xywhr2xyxyxyxy
+from . import LossFunction
 
 TORCH_1_10 = check_version(torch.__version__, "1.10.0")
 
@@ -121,7 +122,7 @@ class TaskAlignedAssigner(nn.Module):
         return align_metric, overlaps
 
     def iou_calculation(self, gt_bboxes, pd_bboxes):
-        """IoU calculation for horizontal bounding boxes."""
+        """Iou calculation for horizontal bounding boxes."""
         return bbox_iou(gt_bboxes, pd_bboxes, xywh=False, CIoU=True).squeeze(-1).clamp_(0)
 
     def select_topk_candidates(self, metrics, largest=True, topk_mask=None):
@@ -231,7 +232,7 @@ class TaskAlignedAssigner(nn.Module):
     @staticmethod
     def select_highest_overlaps(mask_pos, overlaps, n_max_boxes):
         """
-        If an anchor box is assigned to multiple gts, the one with the highest IoU will be selected.
+        If an anchor box is assigned to multiple gts, the one with the highest IoI will be selected.
 
         Args:
             mask_pos (Tensor): shape(b, n_max_boxes, h*w)
@@ -260,7 +261,7 @@ class TaskAlignedAssigner(nn.Module):
 
 class RotatedTaskAlignedAssigner(TaskAlignedAssigner):
     def iou_calculation(self, gt_bboxes, pd_bboxes):
-        """IoU calculation for rotated bounding boxes."""
+        """Iou calculation for rotated bounding boxes."""
         return probiou(gt_bboxes, pd_bboxes).squeeze(-1).clamp_(0)
 
     @staticmethod
@@ -296,7 +297,7 @@ def make_anchors(feats, strides, grid_cell_offset=0.5):
     anchor_points, stride_tensor = [], []
     assert feats is not None
     dtype, device = feats[0].dtype, feats[0].device
-    for i, stride in enumerate(strides):
+    for i, stride in enumerate(strides): # [8, 16, 32]
         _, _, h, w = feats[i].shape
         sx = torch.arange(end=w, device=device, dtype=dtype) + grid_cell_offset  # shift x
         sy = torch.arange(end=h, device=device, dtype=dtype) + grid_cell_offset  # shift y
@@ -335,10 +336,11 @@ def dist2rbox(pred_dist, pred_angle, anchor_points, dim=-1):
     Returns:
         (torch.Tensor): Predicted rotated bounding boxes, (bs, h*w, 4).
     """
-    lt, rb = pred_dist.split(2, dim=dim)
+    lt, rb = pred_dist.split(2, dim=dim) #x1y1, x2y2
     cos, sin = torch.cos(pred_angle), torch.sin(pred_angle)
-    # (bs, h*w, 1)
-    xf, yf = ((rb - lt) / 2).split(1, dim=dim)
+    xf, yf = ((rb - lt) / 2).split(1, dim=dim) # w/2, h/2
+    # apply inverse transformation: https://en.wikipedia.org/wiki/Rotation_of_axes_in_two_dimensions
     x, y = xf * cos - yf * sin, xf * sin + yf * cos
     xy = torch.cat([x, y], dim=dim) + anchor_points
+    # rotated xy,lt+rb=??? ok, let's just consider it as width and height although it doesn't make sense
     return torch.cat([xy, lt + rb], dim=dim)
