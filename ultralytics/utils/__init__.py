@@ -31,7 +31,7 @@ LOCAL_RANK = int(os.getenv("LOCAL_RANK", -1))  # https://pytorch.org/docs/stable
 
 # Other Constants
 class LossFunction:
-    loss = "kfiou"
+    loss = "probiou"
 
 FILE = Path(__file__).resolve()
 ROOT = FILE.parents[1]  # YOLO
