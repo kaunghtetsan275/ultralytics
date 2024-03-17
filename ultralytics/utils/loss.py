@@ -7,7 +7,7 @@ import torch.nn.functional as F
 from ultralytics.utils.metrics import OKS_SIGMA
 from ultralytics.utils.ops import crop_mask, xywh2xyxy, xyxy2xywh
 from ultralytics.utils.tal import RotatedTaskAlignedAssigner, TaskAlignedAssigner, dist2bbox, dist2rbox, make_anchors
-from .metrics import bbox_iou, probiou, kfiou, rotated_iou, diou_loss
+from .metrics import bbox_iou, probiou, kfiou, rotated_iou, diou_loss, ciou_loss
 from ultralytics.utils import LossFunction
 from .tal import bbox2dist
 
@@ -139,6 +139,9 @@ class RotatedBboxLoss(BboxLoss):
             loss_iou = loss_iou * weight # weighted loss: each instance has different weight
             loss_iou = loss_iou.sum()
             loss_iou = loss_iou / target_scores_sum
+        elif LossFunction.loss=="ciou":
+            loss_iou = ciou_loss(obb1, obb2)
+            loss_iou = (loss_iou*weight).sum()/target_scores_sum
         else:
             # beta = 0.5
             iou = probiou(obb1, obb2)

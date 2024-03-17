@@ -5,7 +5,7 @@ import math
 import warnings
 from pathlib import Path
 
-from rotated_iou.oriented_iou_loss import cal_iou, cal_diou, cal_giou
+from rotated_iou.oriented_iou_loss import cal_iou, cal_diou, cal_ciou
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
@@ -377,6 +377,12 @@ def diou_loss(obb1, obb2):
     dloss, _ = cal_diou(obb1, obb2)
     dloss = dloss.permute(1,0)
     return dloss
+
+def ciou_loss(obb1, obb2):
+    obb1, obb2 = obb1.unsqueeze(0), obb2.unsqueeze(0)
+    closs, _ = cal_ciou(obb1, obb2)
+    closs = closs.permute(1,0)
+    return closs
     
 def smooth_BCE(eps=0.1):
     """
