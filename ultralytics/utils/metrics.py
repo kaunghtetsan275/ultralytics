@@ -363,6 +363,58 @@ def kfiou(obb1, obb2, func="vanilla", eps=1e-7, beta=1.0):
     loss = xy_loss + kfiou_loss
     return loss
 
+def mkiou_loss(obb1, obb2, func="vanilla", eps=1e-7, beta=1.0 / 9.0, alpha=3):
+    """
+    Calculate KFIoU between oriented bounding boxes.
+
+    Args:
+        obb1 (torch.Tensor | np.ndarray): A tensor of shape (N, 5) representing ground truth obbs, with xywhr format.
+        obb2 (torch.Tensor | np.ndarray): A tensor of shape (M, 5) representing predicted obbs, with xywhr format.
+        eps (float, optional): A small value to avoid division by zero. Defaults to 1e-7.
+
+    Returns:
+        (torch.Tensor): A tensor of shape (N, M) representing obb similarities.
+    """    
+    xy_p = obb2[:, :2]
+    xy_t = obb1[:, :2]
+
+    ## 2D Gaussian distribution of obb from xywhr
+    _, sigma_p =_get_covariance_matrix_kfiou(obb1)
+    sigma_p = sigma_p.float()
+    _, sigma_t =_get_covariance_matrix_kfiou(obb2)
+    sigma_t = sigma_t.float()
+
+    # Smooth-L1 norm
+    diff = torch.abs(xy_p - xy_t)
+    xy_loss = torch.where(diff < beta, 0.5 * diff * diff / beta,
+                          diff - 0.5 * beta).sum(dim=-1)
+    xy_loss = xy_loss.view(-1,1).float()
+
+    ## Volume of obb
+    Vb_p = 4 * sigma_p.det().sqrt().view(-1,1)
+    Vb_t = 4 * sigma_t.det().sqrt().view(-1,1)
+    sigma_joint_inv = (sigma_p + sigma_t).inverse()
+    # K = sigma_p.bmm(sigma_joint_inv) # Kalman gain
+    K = torch.matmul(sigma_p,sigma_joint_inv) # Kalman gain
+    # sigma = sigma_p - K.bmm(sigma_p) # updated covariance matrix using Kalman gain
+    sigma = sigma_p - torch.matmul(K,sigma_p)
+    ## Volume of updated obb
+    Vb = 4 * sigma.det().sqrt().view(-1,1).float()
+    Vb = torch.where(torch.isnan(Vb), torch.full_like(Vb, 0), Vb) # replace Nan with 0
+
+    kf_iou = (4 - alpha * Vb) / (Vb_p + Vb_t - (Vb*alpha) + eps) # KFIoU
+
+    if func == "exp":
+        kfiou_loss = torch.exp(1 - kf_iou) - 1
+    elif func == "ln":
+        kfiou_loss = -torch.log(kf_iou + eps)
+    else:
+        kfiou_loss = 1 - kf_iou
+    
+    # L_reg loss
+    loss = xy_loss + kfiou_loss
+    return loss
+
 def rotated_iou(obb1, obb2):
     obb1, obb2 = obb1.unsqueeze(0), obb2.unsqueeze(0)
     iou, _,_,_ = cal_iou(obb1, obb2)
