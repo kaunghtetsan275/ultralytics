@@ -142,10 +142,7 @@ class RotatedBboxLoss(BboxLoss):
         elif LossFunction.loss=="ciou":
             loss_iou = ciou_loss(obb1, obb2)
             loss_iou = (loss_iou*weight).sum()/target_scores_sum
-        elif LossFunction.loss=="mkiou":
-            loss_iou = mkiou_loss(obb1, obb2)
         else:
-            # beta = 0.5
             iou = probiou(obb1, obb2)
             loss_iou = 1.0 - iou # vanilla loss [524, 1]
             bd = -torch.log(1-torch.pow(loss_iou, 2))
