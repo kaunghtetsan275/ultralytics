@@ -5,12 +5,12 @@ import math
 import warnings
 from pathlib import Path
 
-from rotated_iou.oriented_iou_loss import cal_iou, cal_diou, cal_ciou
+from rotated_iou.oriented_iou_loss import cal_iou, cal_diou, cal_ciou, riou_only
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
 
-from ultralytics.utils import LOGGER, SimpleClass, TryExcept, plt_settings, LossFunction
+from ultralytics.utils import LOGGER, SimpleClass, TryExcept, plt_settings, LossFunction, ValidationLoss
 
 OKS_SIGMA = (
     np.array([0.26, 0.25, 0.25, 0.35, 0.35, 0.79, 0.79, 0.72, 0.72, 0.62, 0.62, 1.07, 1.07, 0.87, 0.87, 0.89, 0.89])
@@ -237,7 +237,7 @@ def probiou(obb1, obb2, CIoU=False, eps=1e-7, TAL_FLAG=False):
     return iou
 
 
-def batch_probiou(obb1, obb2, eps=1e-7):    
+def batch_probiou(obb1, obb2, eps=1e-7):
     """
     Calculate the prob iou between oriented bounding boxes, https://arxiv.org/pdf/2106.06072v1.pdf.
 
@@ -255,9 +255,9 @@ def batch_probiou(obb1, obb2, eps=1e-7):
     obb2 = torch.from_numpy(obb2) if isinstance(obb2, np.ndarray) else obb2
 
     x1, y1 = obb1[..., :2].split(1, dim=-1)
-    x2, y2 = (x.squeeze(-1)[None] for x in obb2[..., :2].split(1, dim=-1))
+    x2, y2 = (x.squeeze(-1)[None] for x in obb2[..., :2].split(1, dim=-1)) # DIFF center
     a1, b1, c1 = _get_covariance_matrix(obb1)
-    a2, b2, c2 = (x.squeeze(-1)[None] for x in _get_covariance_matrix(obb2))
+    a2, b2, c2 = (x.squeeze(-1)[None] for x in _get_covariance_matrix(obb2)) # DIFF covariance
 
     t1 = (
         ((a1 + a2) * (torch.pow(y1 - y2, 2)) + (b1 + b2) * (torch.pow(x1 - x2, 2)))
@@ -435,6 +435,23 @@ def ciou_loss(obb1, obb2):
     closs, _ = cal_ciou(obb1, obb2)
     closs = closs.permute(1,0)
     return closs
+
+def batch_riou(obb1, obb2):
+    # INPUT: obb1 (batch) and obb2 (predict) do not have the same batch size (N, 5) and (M, 5)
+    # OUTPUT: (N, M) tensor of riou values
+    obb1 = torch.from_numpy(obb1) if isinstance(obb1, np.ndarray) else obb1
+    obb2 = torch.from_numpy(obb2) if isinstance(obb2, np.ndarray) else obb2
+
+    # Adjust to the smaller batch size
+    # min_batch_size = min(obb1.shape[0], obb2.shape[0])
+    # obb1 = obb1[:min_batch_size]
+    # obb2 = obb2[:min_batch_size]
+    
+    # obb1, obb2 = obb1.unsqueeze(0), obb2.unsqueeze(0)
+    riou, _ = riou_only(obb1, obb2)
+    # riou = riou.permute(1, 0)
+    return riou
+    
     
 def smooth_BCE(eps=0.1):
     """
@@ -511,11 +528,20 @@ class ConfusionMatrix:
         gt_classes = gt_cls.int()
         detection_classes = detections[:, 5].int()
         is_obb = detections.shape[1] == 7 and gt_bboxes.shape[1] == 5  # with additional `angle` dimension
-        iou = (
-                batch_probiou(gt_bboxes, torch.cat([detections[:, :4], detections[:, -1:]], dim=-1))
-                if is_obb
-                else box_iou(gt_bboxes, detections[:, :4])
-            )
+        # iou = (
+        #         batch_probiou(gt_bboxes, torch.cat([detections[:, :4], detections[:, -1:]], dim=-1))
+        #         if is_obb
+        #         else box_iou(gt_bboxes, detections[:, :4])
+        #     )
+        if is_obb:
+            # torch.save(gt_bboxes, f"{LossFunction.tnsr_id}_obb1_process_batch.pt")
+            # torch.save(torch.cat([detections[:, :4], detections[:, -1:]], dim=-1), f"{LossFunction.tnsr_id}_obb2_process_batch.pt")
+            if ValidationLoss.loss == "probiou":
+                iou = (batch_probiou(gt_bboxes, torch.cat([detections[:, :4], detections[:, -1:]], dim=-1)))
+            if ValidationLoss.loss == "riou":
+                iou = (batch_riou(gt_bboxes, torch.cat([detections[:, :4], detections[:, -1:]], dim=-1)))
+        else:
+            iou = (bbox_iou(gt_bboxes, detections[:, :4]))
 
         x = torch.where(iou > self.iou_thres)
         if x[0].shape[0]:
@@ -533,7 +559,10 @@ class ConfusionMatrix:
         for i, gc in enumerate(gt_classes):
             j = m0 == i
             if n and sum(j) == 1:
-                self.matrix[detection_classes[m1[j]], gc] += 1  # correct
+                try:
+                    self.matrix[detection_classes[m1[j]], gc] += 1  # correct
+                except:
+                    pass
             else:
                 self.matrix[self.nc, gc] += 1  # true background
 
