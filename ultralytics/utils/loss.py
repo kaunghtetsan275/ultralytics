@@ -4,12 +4,12 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from ultralytics.utils import LossFunction
 from ultralytics.utils.metrics import OKS_SIGMA
 from ultralytics.utils.ops import crop_mask, xywh2xyxy, xyxy2xywh
 from ultralytics.utils.tal import RotatedTaskAlignedAssigner, TaskAlignedAssigner, dist2bbox, dist2rbox, make_anchors
 from ultralytics.utils.torch_utils import autocast
-
-from .metrics import bbox_iou, probiou
+from .metrics import bbox_iou, ciou_loss, diou_loss, kfiou, probiou, rotated_iou
 from .tal import bbox2dist
 
 
@@ -122,9 +122,43 @@ class RotatedBboxLoss(BboxLoss):
 
     def forward(self, pred_dist, pred_bboxes, anchor_points, target_bboxes, target_scores, target_scores_sum, fg_mask):
         """IoU loss."""
-        weight = target_scores.sum(-1)[fg_mask].unsqueeze(-1)
-        iou = probiou(pred_bboxes[fg_mask], target_bboxes[fg_mask])
-        loss_iou = ((1.0 - iou) * weight).sum() / target_scores_sum
+        # anchor_points [8400, 2]
+        # target_scores_sum = SCALAR VALUE = 137.9
+        # target_score [4, 8400, 15]
+        # target_scores.sum(-1).size() [4, 8400]
+        # fg_mask [4, 8400]
+        # target_scores.sum(-1)[fg_mask].size() [524]
+        weight = target_scores.sum(-1)[fg_mask].unsqueeze(-1)  # weight [524, 1]
+
+        obb1 = target_bboxes[fg_mask]
+        obb2 = pred_bboxes[fg_mask]
+
+        # boss loss
+        if LossFunction.loss == "kfiou":
+            loss_iou = kfiou(obb1, obb2)
+            loss_iou = loss_iou * weight  # weighted loss: each instance has different weight
+            loss_iou = loss_iou.sum()
+            loss_iou = loss_iou / target_scores_sum  # average loss: average loss of all instances.
+        elif LossFunction.loss == "riou":
+            iou = rotated_iou(obb1, obb2)
+            loss_iou = ((1.0 - iou) * weight).sum() / target_scores_sum
+        elif LossFunction.loss == "diou":
+            loss_iou = diou_loss(obb1, obb2)
+            loss_iou = loss_iou * weight  # weighted loss: each instance has different weight
+            loss_iou = loss_iou.sum()
+            loss_iou = loss_iou / target_scores_sum
+        elif LossFunction.loss == "ciou":
+            loss_iou = ciou_loss(obb1, obb2)
+            loss_iou = (loss_iou * weight).sum() / target_scores_sum
+        else:
+            iou = probiou(obb1, obb2)
+            loss_iou = 1.0 - iou  # vanilla loss [524, 1]
+            bd = -torch.log(1 - torch.pow(loss_iou, 2))
+            loss_iou = torch.where(loss_iou < 0.5, loss_iou, bd)  # smooth prob
+            # loss_iou = torch.where(loss_iou < beta, 0.25 * loss_iou * loss_iou / beta, loss_iou - 0.75 * beta)
+            loss_iou = loss_iou * weight  # weighted loss: each instance has different weight
+            loss_iou = loss_iou.sum()  # sum of weighted loss: total loss of all instances [Scalar Tensor]
+            loss_iou = loss_iou / target_scores_sum  # average loss: average loss of all instances.
 
         # DFL loss
         if self.dfl_loss:
@@ -147,7 +181,7 @@ class KeypointLoss(nn.Module):
 
     def forward(self, pred_kpts, gt_kpts, kpt_mask, area):
         """Calculates keypoint loss factor and Euclidean distance loss for predicted and actual keypoints."""
-        d = (pred_kpts[..., 0] - gt_kpts[..., 0]).pow(2) + (pred_kpts[..., 1] - gt_kpts[..., 1]).pow(2)
+        d = (pred_kpts[..., 0] - gt_kpts[..., 0]) ** 2 + (pred_kpts[..., 1] - gt_kpts[..., 1]) ** 2
         kpt_loss_factor = kpt_mask.shape[1] / (torch.sum(kpt_mask != 0, dim=1) + 1e-9)
         # e = d / (2 * (area * self.sigmas) ** 2 + 1e-9)  # from formula
         e = d / ((2 * self.sigmas).pow(2) * (area + 1e-9) * 2)  # from cocoeval
@@ -161,7 +195,6 @@ class v8DetectionLoss:
         """Initializes v8DetectionLoss with the model, defining model-related properties and BCE loss function."""
         device = next(model.parameters()).device  # get model device
         h = model.args  # hyperparameters
-
         m = model.model[-1]  # Detect() module
         self.bce = nn.BCEWithLogitsLoss(reduction="none")
         self.hyp = h
@@ -629,8 +662,8 @@ class v8OBBLoss(v8DetectionLoss):
             counts = counts.to(dtype=torch.int32)
             out = torch.zeros(batch_size, counts.max(), 6, device=self.device)
             for j in range(batch_size):
-                matches = i == j
-                n = matches.sum()
+                matches = i == j  # matches is a boolean tensor
+                n = matches.sum()  # number of matches
                 if n:
                     bboxes = targets[matches, 2:]
                     bboxes[..., :4].mul_(scale_tensor)
@@ -642,18 +675,22 @@ class v8OBBLoss(v8DetectionLoss):
         loss = torch.zeros(3, device=self.device)  # box, cls, dfl
         feats, pred_angle = preds if isinstance(preds[0], list) else preds[1]
         batch_size = pred_angle.shape[0]  # batch size, number of masks, mask height, mask width
-        pred_distri, pred_scores = torch.cat([xi.view(feats[0].shape[0], self.no, -1) for xi in feats], 2).split(
-            (self.reg_max * 4, self.nc), 1
-        )
+        # change f_w and f_h to f_size
+        feats_cat = torch.cat([xi.view(feats[0].shape[0], self.no, -1) for xi in feats], 2)  # [bs, 79, f_size]
+        # split to [bs, 64, f_size] and [bs, 15, f_size]
+        pred_distri, pred_scores = feats_cat.split((self.reg_max * 4, self.nc), 1)
 
         # b, grids, ..
-        pred_scores = pred_scores.permute(0, 2, 1).contiguous()
-        pred_distri = pred_distri.permute(0, 2, 1).contiguous()
-        pred_angle = pred_angle.permute(0, 2, 1).contiguous()
+        pred_angle = pred_angle.permute(0, 2, 1).contiguous()  # [bs, f_size, 1]
+        pred_distri = pred_distri.permute(0, 2, 1).contiguous()  # [bs, f_size, 64]
+        pred_scores = pred_scores.permute(0, 2, 1).contiguous()  # [bs, f_size, 15]
 
         dtype = pred_scores.dtype
-        imgsz = torch.tensor(feats[0].shape[2:], device=self.device, dtype=dtype) * self.stride[0]  # image size (h,w)
-        anchor_points, stride_tensor = make_anchors(feats, self.stride, 0.5)
+        # imgsz = channel[0]size=(80, 80) * stride[0]=8 = (640, 640)
+        imgsz = torch.tensor(feats[0].shape[2:], device=self.device, dtype=dtype) * self.stride[0]
+        # Generate anchors from features (not rotated yet, right?)
+        # anchor_points size (f_size, 2), stride_tensor size (f_size, 1)
+        anchor_points, stride_tensor = make_anchors(feats, self.stride, grid_cell_offset=0.5)
 
         # targets
         try:
@@ -678,7 +715,7 @@ class v8OBBLoss(v8DetectionLoss):
 
         bboxes_for_assigner = pred_bboxes.clone().detach()
         # Only the first four elements need to be scaled
-        bboxes_for_assigner[..., :4] *= stride_tensor
+        bboxes_for_assigner[..., :4] *= stride_tensor  # xywh multiplied by stride
         _, target_bboxes, target_scores, fg_mask, _ = self.assigner(
             pred_scores.detach().sigmoid(),
             bboxes_for_assigner.type(gt_bboxes.dtype),
@@ -695,17 +732,20 @@ class v8OBBLoss(v8DetectionLoss):
         loss[1] = self.bce(pred_scores, target_scores.to(dtype)).sum() / target_scores_sum  # BCE
 
         # Bbox loss
-        if fg_mask.sum():
-            target_bboxes[..., :4] /= stride_tensor
+        if fg_mask.sum():  # if there are any positive samples
+            target_bboxes[..., :4] /= stride_tensor  # xywh divided by stride_tensors
             loss[0], loss[2] = self.bbox_loss(
                 pred_distri, pred_bboxes, anchor_points, target_bboxes, target_scores, target_scores_sum, fg_mask
             )
         else:
             loss[0] += (pred_angle * 0).sum()
 
-        loss[0] *= self.hyp.box  # box gain
-        loss[1] *= self.hyp.cls  # cls gain
-        loss[2] *= self.hyp.dfl  # dfl gain
+        # loss[0] *= self.hyp.box  # box gain
+        # loss[1] *= self.hyp.cls  # cls gain
+        # loss[2] *= self.hyp.dfl  # dfl gain
+        loss[0] *= 7.5  # box gain
+        loss[1] *= 0.5  # cls gain
+        loss[2] *= 1.5  # dfl gain
 
         return loss.sum() * batch_size, loss.detach()  # loss(box, cls, dfl)
 
@@ -722,8 +762,11 @@ class v8OBBLoss(v8DetectionLoss):
             (torch.Tensor): Predicted rotated bounding boxes with angles, (bs, h*w, 5).
         """
         if self.use_dfl:
-            b, a, c = pred_dist.shape  # batch, anchors, channels
+            b, a, c = pred_dist.shape  # batch, feats/anchors, channels
+            # reshape pred_distri to (bs, f_size, 4, 16)
+            # apply softmax to last channel (DFL) and multiply with the projection matrix
             pred_dist = pred_dist.view(b, a, 4, c // 4).softmax(3).matmul(self.proj.type(pred_dist.dtype))
+            # pred_dist shape after matmul is (bs, f_size, 4)
         return torch.cat((dist2rbox(pred_dist, pred_angle, anchor_points), pred_angle), dim=-1)
 
 

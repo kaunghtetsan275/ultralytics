@@ -5,8 +5,8 @@ from pathlib import Path
 import torch
 
 from ultralytics.models.yolo.detect import DetectionValidator
-from ultralytics.utils import LOGGER, ops
-from ultralytics.utils.metrics import OBBMetrics, batch_probiou
+from ultralytics.utils import LOGGER, ValidationLoss, ops
+from ultralytics.utils.metrics import OBBMetrics, batch_probiou, batch_riou
 from ultralytics.utils.plotting import output_to_rotated_target, plot_images
 
 
@@ -76,7 +76,12 @@ class OBBValidator(DetectionValidator):
         Note:
             This method relies on `batch_probiou` to calculate IoU between detections and ground truth bounding boxes.
         """
-        iou = batch_probiou(gt_bboxes, torch.cat([detections[:, :4], detections[:, -1:]], dim=-1))
+        # torch.save(gt_bboxes, f"{LossFunction.tnsr_id}_obb1__process_batch.pt")
+        # torch.save(torch.cat([detections[:, :4], detections[:, -1:]], dim=-1), f"{LossFunction.tnsr_id}_obb2__process_batch.pt")
+        if ValidationLoss.loss == "probiou":
+            iou = batch_probiou(gt_bboxes, torch.cat([detections[:, :4], detections[:, -1:]], dim=-1))
+        if ValidationLoss.loss == "riou":
+            iou = batch_riou(gt_bboxes, torch.cat([detections[:, :4], detections[:, -1:]], dim=-1))
         return self.match_predictions(detections[:, 5], gt_cls, iou)
 
     def _prepare_batch(self, si, batch):
@@ -88,6 +93,8 @@ class OBBValidator(DetectionValidator):
         imgsz = batch["img"].shape[2:]
         ratio_pad = batch["ratio_pad"][si]
         if len(cls):
+            if not self.device:
+                self.device = "cuda" if torch.cuda.is_available() else "cpu"
             bbox[..., :4].mul_(torch.tensor(imgsz, device=self.device)[[1, 0, 1, 0]])  # target boxes
             ops.scale_boxes(imgsz, bbox, ori_shape, ratio_pad=ratio_pad, xywh=True)  # native-space labels
         return {"cls": cls, "bbox": bbox, "ori_shape": ori_shape, "imgsz": imgsz, "ratio_pad": ratio_pad}

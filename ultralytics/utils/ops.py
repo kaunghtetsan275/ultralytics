@@ -10,8 +10,8 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
-from ultralytics.utils import LOGGER
-from ultralytics.utils.metrics import batch_probiou
+from ultralytics.utils import LOGGER, ValidationLoss
+from ultralytics.utils.metrics import batch_probiou, batch_riou
 
 
 class Profile(contextlib.ContextDecorator):
@@ -155,7 +155,12 @@ def nms_rotated(boxes, scores, threshold=0.45):
         return np.empty((0,), dtype=np.int8)
     sorted_idx = torch.argsort(scores, descending=True)
     boxes = boxes[sorted_idx]
-    ious = batch_probiou(boxes, boxes).triu_(diagonal=1)
+    if ValidationLoss.loss == "probiou":
+        ious = batch_probiou(boxes, boxes).triu_(diagonal=1)
+        ious = ious.cpu()
+    if ValidationLoss.loss == "riou":
+        ious = batch_riou(boxes, boxes).triu_(diagonal=1)
+        ious = ious.cpu()
     pick = torch.nonzero(ious.max(dim=0)[0] < threshold).squeeze_(-1)
     return sorted_idx[pick]
 
@@ -231,7 +236,7 @@ def non_max_suppression(
 
     # Settings
     # min_wh = 2  # (pixels) minimum box width and height
-    time_limit = 2.0 + max_time_img * bs  # seconds to quit after
+    time_limit = 7200.0 + max_time_img * bs  # seconds to quit after
     multi_label &= nc > 1  # multiple labels per box (adds 0.5ms/img)
 
     prediction = prediction.transpose(-1, -2)  # shape(1,84,6300) to shape(1,6300,84)
@@ -308,7 +313,7 @@ def non_max_suppression(
         if (time.time() - t) > time_limit:
             LOGGER.warning(f"WARNING ⚠️ NMS time limit {time_limit:.3f}s exceeded")
             break  # time limit exceeded
-
+    # print("NMS execution time: " , time.time()       - t)
     return output
 
 

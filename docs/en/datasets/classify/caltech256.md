@@ -51,6 +51,7 @@ To train a YOLO model on the Caltech-256 dataset for 100 epochs, you can use the
 
         # Train the model
         results = model.train(data="caltech256", epochs=100, imgsz=416)
+        results = model.train(data="caltech256", epochs=100, imgsz=416)
         ```
 
     === "CLI"

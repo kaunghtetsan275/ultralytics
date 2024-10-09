@@ -2,6 +2,7 @@
 __pycache__/
 *.py[cod]
 *$py.class
+rotated_iou
 
 # C extensions
 *.so
