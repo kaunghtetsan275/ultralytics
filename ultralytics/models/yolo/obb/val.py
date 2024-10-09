@@ -5,7 +5,7 @@ from pathlib import Path
 import torch
 
 from ultralytics.models.yolo.detect import DetectionValidator
-from ultralytics.utils import LOGGER, ops, ValidationLoss, LossFunction
+from ultralytics.utils import LOGGER, ValidationLoss, ops
 from ultralytics.utils.metrics import OBBMetrics, batch_probiou, batch_riou
 from ultralytics.utils.plotting import output_to_rotated_target, plot_images
 
@@ -65,7 +65,7 @@ class OBBValidator(DetectionValidator):
             (torch.Tensor): Correct prediction matrix of shape [N, 10] for 10 IoU levels.
         """
         # torch.save(gt_bboxes, f"{LossFunction.tnsr_id}_obb1__process_batch.pt")
-        # torch.save(torch.cat([detections[:, :4], detections[:, -1:]], dim=-1), f"{LossFunction.tnsr_id}_obb2__process_batch.pt")        
+        # torch.save(torch.cat([detections[:, :4], detections[:, -1:]], dim=-1), f"{LossFunction.tnsr_id}_obb2__process_batch.pt")
         if ValidationLoss.loss == "probiou":
             iou = batch_probiou(gt_bboxes, torch.cat([detections[:, :4], detections[:, -1:]], dim=-1))
         if ValidationLoss.loss == "riou":

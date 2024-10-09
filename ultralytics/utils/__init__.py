@@ -29,13 +29,16 @@ from ultralytics import __version__
 RANK = int(os.getenv("RANK", -1))
 LOCAL_RANK = int(os.getenv("LOCAL_RANK", -1))  # https://pytorch.org/docs/stable/elastic/run.html
 
+
 # Other Constants
 class LossFunction:
     loss = "probiou"
     tnsr_id = ""
 
+
 class ValidationLoss:
     loss = "probiou"
+
 
 FILE = Path(__file__).resolve()
 ROOT = FILE.parents[1]  # YOLO
@@ -209,7 +212,6 @@ def plt_settings(rcparams=None, backend="Agg"):
         (Callable): Decorated function with temporarily set rc parameters and backend. This decorator can be
             applied to any function that needs to have specific matplotlib rc parameters and backend for its execution.
     """
-
     if rcparams is None:
         rcparams = {"font.size": 11}
 
@@ -657,7 +659,7 @@ SETTINGS_YAML = USER_CONFIG_DIR / "settings.yaml"
 
 
 def colorstr(*input):
-    """
+    r"""
     Colors a string based on the provided color and style arguments. Utilizes ANSI escape codes.
     See https://en.wikipedia.org/wiki/ANSI_escape_code for more details.
 

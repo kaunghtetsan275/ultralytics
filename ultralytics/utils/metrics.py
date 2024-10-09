@@ -5,12 +5,12 @@ import math
 import warnings
 from pathlib import Path
 
-from rotated_iou.oriented_iou_loss import cal_iou, cal_diou, cal_ciou, riou_only
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
+from rotated_iou.oriented_iou_loss import cal_ciou, cal_diou, cal_iou, riou_only
 
-from ultralytics.utils import LOGGER, SimpleClass, TryExcept, plt_settings, LossFunction, ValidationLoss
+from ultralytics.utils import LOGGER, SimpleClass, TryExcept, ValidationLoss, plt_settings
 
 OKS_SIGMA = (
     np.array([0.26, 0.25, 0.25, 0.35, 0.35, 0.79, 0.79, 0.72, 0.72, 0.62, 0.62, 1.07, 1.07, 0.87, 0.87, 0.89, 0.89])
@@ -31,7 +31,6 @@ def bbox_ioa(box1, box2, iou=False, eps=1e-7):
     Returns:
         (np.ndarray): A numpy array of shape (n, m) representing the intersection over box2 area.
     """
-
     # Get the coordinates of bounding boxes
     b1_x1, b1_y1, b1_x2, b1_y2 = box1.T
     b2_x1, b2_y1, b2_x2, b2_y2 = box2.T
@@ -54,7 +53,7 @@ def bbox_ioa(box1, box2, iou=False, eps=1e-7):
 def box_iou(box1, box2, eps=1e-7):
     """
     Calculate intersection-over-union (IoU) of boxes. Both sets of boxes are expected to be in (x1, y1, x2, y2) format.
-    Based on https://github.com/pytorch/vision/blob/master/torchvision/ops/boxes.py
+    Based on https://github.com/pytorch/vision/blob/master/torchvision/ops/boxes.py.
 
     Args:
         box1 (torch.Tensor): A tensor of shape (N, 4) representing N bounding boxes.
@@ -64,7 +63,6 @@ def box_iou(box1, box2, eps=1e-7):
     Returns:
         (torch.Tensor): An NxM tensor containing the pairwise IoU values for every element in box1 and box2.
     """
-
     # inter(N,M) = (rb(N,M,2) - lt(N,M,2)).clamp(0).prod(2)
     (a1, a2), (b1, b2) = box1.unsqueeze(1).chunk(2, 2), box2.unsqueeze(0).chunk(2, 2)
     inter = (torch.min(a2, b2) - torch.max(a1, b1)).clamp_(0).prod(2)
@@ -90,7 +88,6 @@ def bbox_iou(box1, box2, xywh=True, GIoU=False, DIoU=False, CIoU=False, eps=1e-7
     Returns:
         (torch.Tensor): IoU, GIoU, DIoU, or CIoU values depending on the specified flags.
     """
-
     # Get the coordinates of bounding boxes
     if xywh:  # transform from xywh to xyxy
         (x1, y1, w1, h1), (x2, y2, w2, h2) = box1.chunk(4, -1), box2.chunk(4, -1)
@@ -208,7 +205,7 @@ def probiou(obb1, obb2, CIoU=False, eps=1e-7, TAL_FLAG=False):
     # print("x1, y1", x1.dtype, y1.dtype)
     # print("x2, y2", x2.dtype, y2.dtype)
     a1, b1, c1 = _get_covariance_matrix(obb1)
-    a2, b2, c2 = _get_covariance_matrix(obb2) 
+    a2, b2, c2 = _get_covariance_matrix(obb2)
 
     t1 = (
         ((a1 + a2) * (torch.pow(y1 - y2, 2)) + (b1 + b2) * (torch.pow(x1 - x2, 2)))
@@ -255,9 +252,9 @@ def batch_probiou(obb1, obb2, eps=1e-7):
     obb2 = torch.from_numpy(obb2) if isinstance(obb2, np.ndarray) else obb2
 
     x1, y1 = obb1[..., :2].split(1, dim=-1)
-    x2, y2 = (x.squeeze(-1)[None] for x in obb2[..., :2].split(1, dim=-1)) # DIFF center
+    x2, y2 = (x.squeeze(-1)[None] for x in obb2[..., :2].split(1, dim=-1))  # DIFF center
     a1, b1, c1 = _get_covariance_matrix(obb1)
-    a2, b2, c2 = (x.squeeze(-1)[None] for x in _get_covariance_matrix(obb2)) # DIFF covariance
+    a2, b2, c2 = (x.squeeze(-1)[None] for x in _get_covariance_matrix(obb2))  # DIFF covariance
 
     t1 = (
         ((a1 + a2) * (torch.pow(y1 - y2, 2)) + (b1 + b2) * (torch.pow(x1 - x2, 2)))
@@ -277,9 +274,11 @@ def batch_probiou(obb1, obb2, eps=1e-7):
     hd = torch.sqrt(1.0 - torch.exp(-bd) + eps)
     return 1 - hd
 
+
 # REVIEW: this is actually the same as get_covariance_matrix. should i keep this?
 def _get_covariance_matrix_kfiou(xywhr):
-    """Convert oriented bounding box to 2-D Gaussian distribution.
+    """
+    Convert oriented bounding box to 2-D Gaussian distribution.
 
     Args:
         xywhr (torch.Tensor): rbboxes with shape (N, 5).
@@ -299,13 +298,14 @@ def _get_covariance_matrix_kfiou(xywhr):
     sin_r = torch.sin(r)
     # rotation matrix
     R = torch.stack((cos_r, -sin_r, sin_r, cos_r), dim=-1).reshape(-1, 2, 2)
-    S = torch.pow(torch.diag_embed(wh),2)/12
+    S = torch.pow(torch.diag_embed(wh), 2) / 12
     R_t = torch.transpose(R, 1, 2)
-    RS = torch.matmul(R,S)
-    RSR_t = torch.matmul(RS,R_t)
+    RS = torch.matmul(R, S)
+    RSR_t = torch.matmul(RS, R_t)
     # sigma = R.bmm(S.square()).bmm(R.permute(0, 2, 1)).reshape(_shape[:-1] + (2, 2))
     # return xy, sigma
     return xy, RSR_t
+
 
 # https://arxiv.org/pdf/2201.12558.pdf
 # https://github.com/open-mmlab/mmrotate/blob/main/mmrotate/models/losses/kf_iou_loss.py
@@ -320,37 +320,36 @@ def kfiou(obb1, obb2, func="vanilla", eps=1e-7, beta=1.0):
 
     Returns:
         (torch.Tensor): A tensor of shape (N, M) representing obb similarities.
-    """    
+    """
     xy_p = obb2[:, :2]
     xy_t = obb1[:, :2]
 
     ## 2D Gaussian distribution of obb from xywhr
-    _, sigma_p =_get_covariance_matrix_kfiou(obb1)
+    _, sigma_p = _get_covariance_matrix_kfiou(obb1)
     sigma_p = sigma_p.float()
-    _, sigma_t =_get_covariance_matrix_kfiou(obb2)
+    _, sigma_t = _get_covariance_matrix_kfiou(obb2)
     sigma_t = sigma_t.float()
 
     # Smooth-L1 norm
     diff = torch.abs(xy_p - xy_t)
-    xy_loss = torch.where(diff < beta, 0.5 * diff * diff / beta,
-                          diff - 0.5 * beta).sum(dim=-1)
-    xy_loss = xy_loss.view(-1,1).float()
+    xy_loss = torch.where(diff < beta, 0.5 * diff * diff / beta, diff - 0.5 * beta).sum(dim=-1)
+    xy_loss = xy_loss.view(-1, 1).float()
 
     ## Volume of obb
-    Vb_p = 4 * sigma_p.det().sqrt().view(-1,1)
-    Vb_t = 4 * sigma_t.det().sqrt().view(-1,1)
+    Vb_p = 4 * sigma_p.det().sqrt().view(-1, 1)
+    Vb_t = 4 * sigma_t.det().sqrt().view(-1, 1)
     sigma_joint_inv = (sigma_p + sigma_t).inverse()
     # K = sigma_p.bmm(sigma_joint_inv) # Kalman gain
-    K = torch.matmul(sigma_p,sigma_joint_inv) # Kalman gain
+    K = torch.matmul(sigma_p, sigma_joint_inv)  # Kalman gain
     # sigma = sigma_p - K.bmm(sigma_p) # updated covariance matrix using Kalman gain
-    sigma = sigma_p - torch.matmul(K,sigma_p)
+    sigma = sigma_p - torch.matmul(K, sigma_p)
     ## Volume of updated obb
-    Vb = 4 * sigma.det().sqrt().view(-1,1).float()
-    Vb = torch.where(torch.isnan(Vb), torch.full_like(Vb, 0), Vb) # replace Nan with 0
+    Vb = 4 * sigma.det().sqrt().view(-1, 1).float()
+    Vb = torch.where(torch.isnan(Vb), torch.full_like(Vb, 0), Vb)  # replace Nan with 0
     # mean vector
     # xy = xy_t + torch.matmul((xy_p-xy_t),K)
-    
-    kf_iou = Vb / (Vb_p + Vb_t - Vb + eps) # KFIoU
+
+    kf_iou = Vb / (Vb_p + Vb_t - Vb + eps)  # KFIoU
 
     if func == "exp":
         kfiou_loss = torch.exp(1 - kf_iou) - 1
@@ -358,10 +357,11 @@ def kfiou(obb1, obb2, func="vanilla", eps=1e-7, beta=1.0):
         kfiou_loss = -torch.log(kf_iou + eps)
     else:
         kfiou_loss = 1 - kf_iou
-    
+
     # L_reg loss
     loss = xy_loss + kfiou_loss
     return loss
+
 
 def mkiou_loss(obb1, obb2, func="vanilla", eps=1e-7, beta=1.0 / 9.0, alpha=3):
     """
@@ -374,35 +374,34 @@ def mkiou_loss(obb1, obb2, func="vanilla", eps=1e-7, beta=1.0 / 9.0, alpha=3):
 
     Returns:
         (torch.Tensor): A tensor of shape (N, M) representing obb similarities.
-    """    
+    """
     xy_p = obb2[:, :2]
     xy_t = obb1[:, :2]
 
     ## 2D Gaussian distribution of obb from xywhr
-    _, sigma_p =_get_covariance_matrix_kfiou(obb1)
+    _, sigma_p = _get_covariance_matrix_kfiou(obb1)
     sigma_p = sigma_p.float()
-    _, sigma_t =_get_covariance_matrix_kfiou(obb2)
+    _, sigma_t = _get_covariance_matrix_kfiou(obb2)
     sigma_t = sigma_t.float()
 
     # Smooth-L1 norm
     diff = torch.abs(xy_p - xy_t)
-    xy_loss = torch.where(diff < beta, 0.5 * diff * diff / beta,
-                          diff - 0.5 * beta).sum(dim=-1)
-    xy_loss = xy_loss.view(-1,1).float()
+    xy_loss = torch.where(diff < beta, 0.5 * diff * diff / beta, diff - 0.5 * beta).sum(dim=-1)
+    xy_loss = xy_loss.view(-1, 1).float()
 
     ## Volume of obb
-    Vb_p = 4 * sigma_p.det().sqrt().view(-1,1)
-    Vb_t = 4 * sigma_t.det().sqrt().view(-1,1)
+    Vb_p = 4 * sigma_p.det().sqrt().view(-1, 1)
+    Vb_t = 4 * sigma_t.det().sqrt().view(-1, 1)
     sigma_joint_inv = (sigma_p + sigma_t).inverse()
     # K = sigma_p.bmm(sigma_joint_inv) # Kalman gain
-    K = torch.matmul(sigma_p,sigma_joint_inv) # Kalman gain
+    K = torch.matmul(sigma_p, sigma_joint_inv)  # Kalman gain
     # sigma = sigma_p - K.bmm(sigma_p) # updated covariance matrix using Kalman gain
-    sigma = sigma_p - torch.matmul(K,sigma_p)
+    sigma = sigma_p - torch.matmul(K, sigma_p)
     ## Volume of updated obb
-    Vb = 4 * sigma.det().sqrt().view(-1,1).float()
-    Vb = torch.where(torch.isnan(Vb), torch.full_like(Vb, 0), Vb) # replace Nan with 0
+    Vb = 4 * sigma.det().sqrt().view(-1, 1).float()
+    Vb = torch.where(torch.isnan(Vb), torch.full_like(Vb, 0), Vb)  # replace Nan with 0
 
-    kf_iou = (4 - alpha * Vb) / (Vb_p + Vb_t - (Vb*alpha) + eps) # KFIoU
+    kf_iou = (4 - alpha * Vb) / (Vb_p + Vb_t - (Vb * alpha) + eps)  # KFIoU
 
     if func == "exp":
         kfiou_loss = torch.exp(1 - kf_iou) - 1
@@ -410,31 +409,36 @@ def mkiou_loss(obb1, obb2, func="vanilla", eps=1e-7, beta=1.0 / 9.0, alpha=3):
         kfiou_loss = -torch.log(kf_iou + eps)
     else:
         kfiou_loss = 1 - kf_iou
-    
+
     # L_reg loss
     loss = xy_loss + kfiou_loss
     return loss
 
+
 def rotated_iou(obb1, obb2):
     obb1, obb2 = obb1.unsqueeze(0), obb2.unsqueeze(0)
-    iou, _,_,_ = cal_iou(obb1, obb2)
-    iou = iou.permute(1,0)
+    iou, _, _, _ = cal_iou(obb1, obb2)
+    iou = iou.permute(1, 0)
     return iou
+
 
 def giou_loss(obb1, obb2):
     pass
-    
+
+
 def diou_loss(obb1, obb2):
     obb1, obb2 = obb1.unsqueeze(0), obb2.unsqueeze(0)
     dloss, _ = cal_diou(obb1, obb2)
-    dloss = dloss.permute(1,0)
+    dloss = dloss.permute(1, 0)
     return dloss
+
 
 def ciou_loss(obb1, obb2):
     obb1, obb2 = obb1.unsqueeze(0), obb2.unsqueeze(0)
     closs, _ = cal_ciou(obb1, obb2)
-    closs = closs.permute(1,0)
+    closs = closs.permute(1, 0)
     return closs
+
 
 def batch_riou(obb1, obb2):
     # INPUT: obb1 (batch) and obb2 (predict) do not have the same batch size (N, 5) and (M, 5)
@@ -446,13 +450,13 @@ def batch_riou(obb1, obb2):
     # min_batch_size = min(obb1.shape[0], obb2.shape[0])
     # obb1 = obb1[:min_batch_size]
     # obb2 = obb2[:min_batch_size]
-    
+
     # obb1, obb2 = obb1.unsqueeze(0), obb2.unsqueeze(0)
     riou, _ = riou_only(obb1, obb2)
     # riou = riou.permute(1, 0)
     return riou
-    
-    
+
+
 def smooth_BCE(eps=0.1):
     """
     Computes smoothed positive and negative Binary Cross-Entropy targets.
@@ -467,6 +471,7 @@ def smooth_BCE(eps=0.1):
         (tuple): A tuple containing the positive and negative label smoothing BCE targets.
     """
     return 1.0 - 0.5 * eps, 0.5 * eps
+
 
 class ConfusionMatrix:
     """
@@ -537,11 +542,11 @@ class ConfusionMatrix:
             # torch.save(gt_bboxes, f"{LossFunction.tnsr_id}_obb1_process_batch.pt")
             # torch.save(torch.cat([detections[:, :4], detections[:, -1:]], dim=-1), f"{LossFunction.tnsr_id}_obb2_process_batch.pt")
             if ValidationLoss.loss == "probiou":
-                iou = (batch_probiou(gt_bboxes, torch.cat([detections[:, :4], detections[:, -1:]], dim=-1)))
+                iou = batch_probiou(gt_bboxes, torch.cat([detections[:, :4], detections[:, -1:]], dim=-1))
             if ValidationLoss.loss == "riou":
-                iou = (batch_riou(gt_bboxes, torch.cat([detections[:, :4], detections[:, -1:]], dim=-1)))
+                iou = batch_riou(gt_bboxes, torch.cat([detections[:, :4], detections[:, -1:]], dim=-1))
         else:
-            iou = (bbox_iou(gt_bboxes, detections[:, :4]))
+            iou = bbox_iou(gt_bboxes, detections[:, :4])
 
         x = torch.where(iou > self.iou_thres)
         if x[0].shape[0]:
@@ -654,7 +659,7 @@ def plot_pr_curve(px, py, ap, save_dir=Path("pr_curve.png"), names=(), on_plot=N
     else:
         ax.plot(px, py, linewidth=1, color="grey")  # plot(recall, precision)
 
-    ax.plot(px, py.mean(1), linewidth=3, color="blue", label="all classes %.3f mAP@0.5" % ap[:, 0].mean())
+    ax.plot(px, py.mean(1), linewidth=3, color="blue", label=f"all classes {ap[:, 0].mean():.3f} mAP@0.5")
     ax.set_xlabel("Recall")
     ax.set_ylabel("Precision")
     ax.set_xlim(0, 1)
@@ -705,7 +710,6 @@ def compute_ap(recall, precision):
         (np.ndarray): Precision envelope curve.
         (np.ndarray): Modified recall curve with sentinel values added at the beginning and end.
     """
-
     # Append sentinel values to beginning and end
     mrec = np.concatenate(([0.0], recall, [1.0]))
     mpre = np.concatenate(([1.0], precision, [0.0]))
@@ -758,7 +762,6 @@ def ap_per_class(
             x (np.ndarray): X-axis values for the curves. Shape: (1000,).
             prec_values: Precision values at mAP@0.5 for each class. Shape: (nc, 1000).
     """
-
     # Sort by objectness
     i = np.argsort(-conf)
     tp, conf, pred_cls = tp[i], conf[i], pred_cls[i]
@@ -1140,7 +1143,6 @@ class SegmentMetrics(SimpleClass):
             pred_cls (list): List of predicted classes.
             target_cls (list): List of target classes.
         """
-
         results_mask = ap_per_class(
             tp_m,
             conf,
@@ -1282,7 +1284,6 @@ class PoseMetrics(SegmentMetrics):
             pred_cls (list): List of predicted classes.
             target_cls (list): List of target classes.
         """
-
         results_pose = ap_per_class(
             tp_p,
             conf,

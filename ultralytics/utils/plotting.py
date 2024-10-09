@@ -13,6 +13,7 @@ from PIL import Image, ImageDraw, ImageFont
 from PIL import __version__ as pil_version
 
 from ultralytics.utils import LOGGER, TryExcept, ops, plt_settings, threaded
+
 from .checks import check_font, check_version, is_ascii
 from .files import increment_path
 
@@ -680,7 +681,6 @@ def save_one_box(xyxy, im, file=Path("im.jpg"), gain=1.02, pad=10, square=False,
         cropped_im = save_one_box(xyxy, im, file='cropped.jpg', square=True)
         ```
     """
-
     if not isinstance(xyxy, torch.Tensor):  # may be list
         xyxy = torch.stack(xyxy)
     b = ops.xyxy2xywh(xyxy.view(-1, 4))  # boxes
@@ -919,7 +919,6 @@ def plt_color_scatter(v, f, bins=20, cmap="viridis", alpha=0.8, edgecolors="none
         >>> f = np.random.rand(100)
         >>> plt_color_scatter(v, f)
     """
-
     # Calculate 2D histogram and corresponding colors
     hist, xedges, yedges = np.histogram2d(v, f, bins=bins)
     colors = [
@@ -945,7 +944,6 @@ def plot_tune_results(csv_file="tune_results.csv"):
     Examples:
         >>> plot_tune_results('path/to/tune_results.csv')
     """
-
     import pandas as pd
     from scipy.ndimage import gaussian_filter1d
 

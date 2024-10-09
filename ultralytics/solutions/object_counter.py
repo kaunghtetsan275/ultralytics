@@ -17,7 +17,6 @@ class ObjectCounter:
 
     def __init__(self):
         """Initializes the Counter with default values for various tracking and counting parameters."""
-
         # Mouse events
         self.is_drawing = False
         self.selected_point = None

@@ -4,14 +4,15 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from ultralytics.utils import LossFunction
 from ultralytics.utils.metrics import OKS_SIGMA
 from ultralytics.utils.ops import crop_mask, xywh2xyxy, xyxy2xywh
 from ultralytics.utils.tal import RotatedTaskAlignedAssigner, TaskAlignedAssigner, dist2bbox, dist2rbox, make_anchors
-from .metrics import bbox_iou, probiou, kfiou, rotated_iou, diou_loss, ciou_loss, mkiou_loss
-from ultralytics.utils import LossFunction
+
+from .metrics import bbox_iou, ciou_loss, diou_loss, kfiou, probiou, rotated_iou
 from .tal import bbox2dist
 
-    
+
 class VarifocalLoss(nn.Module):
     """
     Varifocal loss by Zhang et al.
@@ -110,7 +111,6 @@ class RotatedBboxLoss(BboxLoss):
     def __init__(self, reg_max, use_dfl=False):
         """Initialize the BboxLoss module with regularization maximum and DFL settings."""
         super().__init__(reg_max, use_dfl)
-    
 
     def forward(self, pred_dist, pred_bboxes, anchor_points, target_bboxes, target_scores, target_scores_sum, fg_mask):
         """IoU loss."""
@@ -120,37 +120,37 @@ class RotatedBboxLoss(BboxLoss):
         # target_scores.sum(-1).size() [4, 8400]
         # fg_mask [4, 8400]
         # target_scores.sum(-1)[fg_mask].size() [524]
-        weight = target_scores.sum(-1)[fg_mask].unsqueeze(-1) # weight [524, 1]
+        weight = target_scores.sum(-1)[fg_mask].unsqueeze(-1)  # weight [524, 1]
 
         obb1 = target_bboxes[fg_mask]
         obb2 = pred_bboxes[fg_mask]
 
         # boss loss
-        if LossFunction.loss=='kfiou':
+        if LossFunction.loss == "kfiou":
             loss_iou = kfiou(obb1, obb2)
-            loss_iou = loss_iou * weight # weighted loss: each instance has different weight
+            loss_iou = loss_iou * weight  # weighted loss: each instance has different weight
             loss_iou = loss_iou.sum()
-            loss_iou = loss_iou / target_scores_sum # average loss: average loss of all instances.
-        elif LossFunction.loss=='riou':
-            iou = rotated_iou(obb1,obb2)
-            loss_iou = ((1.0 - iou)*weight).sum()/target_scores_sum
-        elif LossFunction.loss=='diou':
+            loss_iou = loss_iou / target_scores_sum  # average loss: average loss of all instances.
+        elif LossFunction.loss == "riou":
+            iou = rotated_iou(obb1, obb2)
+            loss_iou = ((1.0 - iou) * weight).sum() / target_scores_sum
+        elif LossFunction.loss == "diou":
             loss_iou = diou_loss(obb1, obb2)
-            loss_iou = loss_iou * weight # weighted loss: each instance has different weight
+            loss_iou = loss_iou * weight  # weighted loss: each instance has different weight
             loss_iou = loss_iou.sum()
             loss_iou = loss_iou / target_scores_sum
-        elif LossFunction.loss=="ciou":
+        elif LossFunction.loss == "ciou":
             loss_iou = ciou_loss(obb1, obb2)
-            loss_iou = (loss_iou*weight).sum()/target_scores_sum
+            loss_iou = (loss_iou * weight).sum() / target_scores_sum
         else:
             iou = probiou(obb1, obb2)
-            loss_iou = 1.0 - iou # vanilla loss [524, 1]
-            bd = -torch.log(1-torch.pow(loss_iou, 2))
-            loss_iou = torch.where(loss_iou < 0.5, loss_iou, bd) # smooth prob
+            loss_iou = 1.0 - iou  # vanilla loss [524, 1]
+            bd = -torch.log(1 - torch.pow(loss_iou, 2))
+            loss_iou = torch.where(loss_iou < 0.5, loss_iou, bd)  # smooth prob
             # loss_iou = torch.where(loss_iou < beta, 0.25 * loss_iou * loss_iou / beta, loss_iou - 0.75 * beta)
-            loss_iou = loss_iou * weight # weighted loss: each instance has different weight
-            loss_iou = loss_iou.sum() # sum of weighted loss: total loss of all instances [Scalar Tensor]
-            loss_iou = loss_iou / target_scores_sum # average loss: average loss of all instances.
+            loss_iou = loss_iou * weight  # weighted loss: each instance has different weight
+            loss_iou = loss_iou.sum()  # sum of weighted loss: total loss of all instances [Scalar Tensor]
+            loss_iou = loss_iou / target_scores_sum  # average loss: average loss of all instances.
 
         # DFL loss
         if self.use_dfl:
@@ -652,8 +652,8 @@ class v8OBBLoss(v8DetectionLoss):
             counts = counts.to(dtype=torch.int32)
             out = torch.zeros(batch_size, counts.max(), 6, device=self.device)
             for j in range(batch_size):
-                matches = i == j # matches is a boolean tensor
-                n = matches.sum() # number of matches
+                matches = i == j  # matches is a boolean tensor
+                n = matches.sum()  # number of matches
                 if n:
                     bboxes = targets[matches, 2:]
                     bboxes[..., :4].mul_(scale_tensor)
@@ -666,14 +666,14 @@ class v8OBBLoss(v8DetectionLoss):
         feats, pred_angle = preds if isinstance(preds[0], list) else preds[1]
         batch_size = pred_angle.shape[0]  # batch size, number of masks, mask height, mask width
         # change f_w and f_h to f_size
-        feats_cat = torch.cat([xi.view(feats[0].shape[0], self.no, -1) for xi in feats], 2) # [bs, 79, f_size]
+        feats_cat = torch.cat([xi.view(feats[0].shape[0], self.no, -1) for xi in feats], 2)  # [bs, 79, f_size]
         # split to [bs, 64, f_size] and [bs, 15, f_size]
         pred_distri, pred_scores = feats_cat.split((self.reg_max * 4, self.nc), 1)
 
         # b, grids, ..
-        pred_angle = pred_angle.permute(0, 2, 1).contiguous() # [bs, f_size, 1]
-        pred_distri = pred_distri.permute(0, 2, 1).contiguous() # [bs, f_size, 64]
-        pred_scores = pred_scores.permute(0, 2, 1).contiguous() # [bs, f_size, 15]
+        pred_angle = pred_angle.permute(0, 2, 1).contiguous()  # [bs, f_size, 1]
+        pred_distri = pred_distri.permute(0, 2, 1).contiguous()  # [bs, f_size, 64]
+        pred_scores = pred_scores.permute(0, 2, 1).contiguous()  # [bs, f_size, 15]
 
         dtype = pred_scores.dtype
         # imgsz = channel[0]size=(80, 80) * stride[0]=8 = (640, 640)
@@ -705,7 +705,7 @@ class v8OBBLoss(v8DetectionLoss):
 
         bboxes_for_assigner = pred_bboxes.clone().detach()
         # Only the first four elements need to be scaled
-        bboxes_for_assigner[..., :4] *= stride_tensor # xywh multiplied by stride
+        bboxes_for_assigner[..., :4] *= stride_tensor  # xywh multiplied by stride
         _, target_bboxes, target_scores, fg_mask, _ = self.assigner(
             pred_scores.detach().sigmoid(),
             bboxes_for_assigner.type(gt_bboxes.dtype),
@@ -722,8 +722,8 @@ class v8OBBLoss(v8DetectionLoss):
         loss[1] = self.bce(pred_scores, target_scores.to(dtype)).sum() / target_scores_sum  # BCE
 
         # Bbox loss
-        if fg_mask.sum(): # if there are any positive samples
-            target_bboxes[..., :4] /= stride_tensor # xywh divided by stride_tensors
+        if fg_mask.sum():  # if there are any positive samples
+            target_bboxes[..., :4] /= stride_tensor  # xywh divided by stride_tensors
             loss[0], loss[2] = self.bbox_loss(
                 pred_distri, pred_bboxes, anchor_points, target_bboxes, target_scores, target_scores_sum, fg_mask
             )

@@ -6,7 +6,6 @@ import torch.nn as nn
 from .checks import check_version
 from .metrics import bbox_iou, probiou
 from .ops import xywhr2xyxyxyxy
-from . import LossFunction
 
 TORCH_1_10 = check_version(torch.__version__, "1.10.0")
 
@@ -141,7 +140,6 @@ class TaskAlignedAssigner(nn.Module):
         Returns:
             (Tensor): A tensor of shape (b, max_num_obj, h*w) containing the selected top-k candidates.
         """
-
         # (b, max_num_obj, topk)
         topk_metrics, topk_idxs = torch.topk(metrics, self.topk, dim=-1, largest=largest)
         if topk_mask is None:
@@ -185,7 +183,6 @@ class TaskAlignedAssigner(nn.Module):
                                           for positive anchor points, where num_classes is the number
                                           of object classes.
         """
-
         # Assigned target labels, (b, 1)
         batch_ind = torch.arange(end=self.bs, dtype=torch.int64, device=gt_labels.device)[..., None]
         target_gt_idx = target_gt_idx + batch_ind * self.n_max_boxes  # (b, h*w)
@@ -297,7 +294,7 @@ def make_anchors(feats, strides, grid_cell_offset=0.5):
     anchor_points, stride_tensor = [], []
     assert feats is not None
     dtype, device = feats[0].dtype, feats[0].device
-    for i, stride in enumerate(strides): # [8, 16, 32]
+    for i, stride in enumerate(strides):  # [8, 16, 32]
         _, _, h, w = feats[i].shape
         sx = torch.arange(end=w, device=device, dtype=dtype) + grid_cell_offset  # shift x
         sy = torch.arange(end=h, device=device, dtype=dtype) + grid_cell_offset  # shift y
@@ -333,12 +330,13 @@ def dist2rbox(pred_dist, pred_angle, anchor_points, dim=-1):
         pred_dist (torch.Tensor): Predicted rotated distance, (bs, h*w, 4).
         pred_angle (torch.Tensor): Predicted angle, (bs, h*w, 1).
         anchor_points (torch.Tensor): Anchor points, (h*w, 2).
+
     Returns:
         (torch.Tensor): Predicted rotated bounding boxes, (bs, h*w, 4).
     """
-    lt, rb = pred_dist.split(2, dim=dim) #x1y1, x2y2
+    lt, rb = pred_dist.split(2, dim=dim)  # x1y1, x2y2
     cos, sin = torch.cos(pred_angle), torch.sin(pred_angle)
-    xf, yf = ((rb - lt) / 2).split(1, dim=dim) # w/2, h/2
+    xf, yf = ((rb - lt) / 2).split(1, dim=dim)  # w/2, h/2
     # apply inverse transformation: https://en.wikipedia.org/wiki/Rotation_of_axes_in_two_dimensions
     x, y = xf * cos - yf * sin, xf * sin + yf * cos
     xy = torch.cat([x, y], dim=dim) + anchor_points

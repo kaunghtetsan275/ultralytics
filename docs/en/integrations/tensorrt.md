@@ -16,7 +16,7 @@ By using the TensorRT export format, you can enhance your [Ultralytics YOLOv8](h
   <img width="100%" src="https://docs.nvidia.com/deeplearning/tensorrt/archives/tensorrt-601/tensorrt-developer-guide/graphics/whatistrt2.png" alt="TensorRT Overview">
 </p>
 
-[TensorRT](https://developer.nvidia.com/tensorrt#:~:text=NVIDIA%20TensorRT%2DLLM%20is%20an,knowledge%20of%20C%2B%2B%20or%20CUDA.), developed by NVIDIA, is an advanced software development kit (SDK) designed for high-speed deep learning inference. It’s well-suited for real-time applications like object detection. 
+[TensorRT](https://developer.nvidia.com/tensorrt#:~:text=NVIDIA%20TensorRT%2DLLM%20is%20an,knowledge%20of%20C%2B%2B%20or%20CUDA.), developed by NVIDIA, is an advanced software development kit (SDK) designed for high-speed deep learning inference. It’s well-suited for real-time applications like object detection.
 
 This toolkit optimizes deep learning models for NVIDIA GPUs and results in faster and more efficient operations. TensorRT models undergo TensorRT optimization, which includes techniques like layer fusion, precision calibration (INT8 and FP16), dynamic tensor memory management, and kernel auto-tuning. Converting deep learning models into the TensorRT format allows developers to realize the potential of NVIDIA GPUs fully.
 
@@ -40,7 +40,7 @@ TensorRT models offer a range of key features that contribute to their efficienc
 
 ## Deployment Options in TensorRT
 
-Before we look at the code for exporting YOLOv8 models to the TensorRT format, let’s understand where TensorRT models are normally used. 
+Before we look at the code for exporting YOLOv8 models to the TensorRT format, let’s understand where TensorRT models are normally used.
 
 TensorRT offers several deployment options, and each option balances ease of integration, performance optimization, and flexibility differently:
 
@@ -65,7 +65,7 @@ To install the required package, run:
 !!! Tip "Installation"
 
     === "CLI"
-    
+
         ```bash
         # Install the required package for YOLOv8
         pip install ultralytics
@@ -85,16 +85,16 @@ Before diving into the usage instructions, be sure to check out the range of [YO
         from ultralytics import YOLO
 
         # Load the YOLOv8 model
-        model = YOLO('yolov8n.pt')
+        model = YOLO("yolov8n.pt")
 
         # Export the model to TensorRT format
-        model.export(format='engine')  # creates 'yolov8n.engine'
+        model.export(format="engine")  # creates 'yolov8n.engine'
 
         # Load the exported TensorRT model
-        tensorrt_model = YOLO('yolov8n.engine')
+        tensorrt_model = YOLO("yolov8n.engine")
 
         # Run inference
-        results = tensorrt_model('https://ultralytics.com/images/bus.jpg')
+        results = tensorrt_model("https://ultralytics.com/images/bus.jpg")
         ```
 
     === "CLI"

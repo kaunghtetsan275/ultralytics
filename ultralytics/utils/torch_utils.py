@@ -98,7 +98,6 @@ def select_device(device="", batch=0, newline=False, verbose=True):
     Note:
         Sets the 'CUDA_VISIBLE_DEVICES' environment variable for specifying which GPUs to use.
     """
-
     if isinstance(device, torch.device):
         return device
 

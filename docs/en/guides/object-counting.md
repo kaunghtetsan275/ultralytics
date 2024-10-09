@@ -30,7 +30,7 @@ Object counting with [Ultralytics YOLOv8](https://github.com/ultralytics/ultraly
 ## Real World Applications
 
 |                                                                           Logistics                                                                           |                                                                     Aquaculture                                                                     |
-|:-------------------------------------------------------------------------------------------------------------------------------------------------------------:|:---------------------------------------------------------------------------------------------------------------------------------------------------:|
+| :-----------------------------------------------------------------------------------------------------------------------------------------------------------: | :-------------------------------------------------------------------------------------------------------------------------------------------------: |
 | ![Conveyor Belt Packets Counting Using Ultralytics YOLOv8](https://github.com/RizwanMunawar/ultralytics/assets/62513924/70e2d106-510c-4c6c-a57a-d34a765aa757) | ![Fish Counting in Sea using Ultralytics YOLOv8](https://github.com/RizwanMunawar/ultralytics/assets/62513924/c60d047b-3837-435f-8d29-bb9fc95d2191) |
 |                                                    Conveyor Belt Packets Counting Using Ultralytics YOLOv8                                                    |                                                    Fish Counting in Sea using Ultralytics YOLOv8                                                    |
 
@@ -39,9 +39,10 @@ Object counting with [Ultralytics YOLOv8](https://github.com/ultralytics/ultraly
     === "Region"
 
         ```python
+        import cv2
+
         from ultralytics import YOLO
         from ultralytics.solutions import object_counter
-        import cv2
 
         model = YOLO("yolov8n.pt")
         cap = cv2.VideoCapture("path/to/video/file.mp4")
@@ -52,17 +53,11 @@ Object counting with [Ultralytics YOLOv8](https://github.com/ultralytics/ultraly
         region_points = [(20, 400), (1080, 404), (1080, 360), (20, 360)]
 
         # Video writer
-        video_writer = cv2.VideoWriter("object_counting_output.avi",
-                               cv2.VideoWriter_fourcc(*'mp4v'),
-                               fps,
-                               (w, h))
+        video_writer = cv2.VideoWriter("object_counting_output.avi", cv2.VideoWriter_fourcc(*"mp4v"), fps, (w, h))
 
         # Init Object Counter
         counter = object_counter.ObjectCounter()
-        counter.set_args(view_img=True,
-                         reg_pts=region_points,
-                         classes_names=model.names,
-                         draw_tracks=True)
+        counter.set_args(view_img=True, reg_pts=region_points, classes_names=model.names, draw_tracks=True)
 
         while cap.isOpened():
             success, im0 = cap.read()
@@ -82,9 +77,10 @@ Object counting with [Ultralytics YOLOv8](https://github.com/ultralytics/ultraly
     === "Line"
 
         ```python
+        import cv2
+
         from ultralytics import YOLO
         from ultralytics.solutions import object_counter
-        import cv2
 
         model = YOLO("yolov8n.pt")
         cap = cv2.VideoCapture("path/to/video/file.mp4")
@@ -95,17 +91,11 @@ Object counting with [Ultralytics YOLOv8](https://github.com/ultralytics/ultraly
         line_points = [(20, 400), (1080, 400)]
 
         # Video writer
-        video_writer = cv2.VideoWriter("object_counting_output.avi",
-                               cv2.VideoWriter_fourcc(*'mp4v'),
-                               fps,
-                               (w, h))
+        video_writer = cv2.VideoWriter("object_counting_output.avi", cv2.VideoWriter_fourcc(*"mp4v"), fps, (w, h))
 
         # Init Object Counter
         counter = object_counter.ObjectCounter()
-        counter.set_args(view_img=True,
-                         reg_pts=line_points,
-                         classes_names=model.names,
-                         draw_tracks=True)
+        counter.set_args(view_img=True, reg_pts=line_points, classes_names=model.names, draw_tracks=True)
 
         while cap.isOpened():
             success, im0 = cap.read()
@@ -125,9 +115,10 @@ Object counting with [Ultralytics YOLOv8](https://github.com/ultralytics/ultraly
     === "Specific Classes"
 
         ```python
+        import cv2
+
         from ultralytics import YOLO
         from ultralytics.solutions import object_counter
-        import cv2
 
         model = YOLO("yolov8n.pt")
         cap = cv2.VideoCapture("path/to/video/file.mp4")
@@ -138,25 +129,18 @@ Object counting with [Ultralytics YOLOv8](https://github.com/ultralytics/ultraly
         classes_to_count = [0, 2]  # person and car classes for count
 
         # Video writer
-        video_writer = cv2.VideoWriter("object_counting_output.avi",
-                               cv2.VideoWriter_fourcc(*'mp4v'),
-                               fps,
-                               (w, h))
+        video_writer = cv2.VideoWriter("object_counting_output.avi", cv2.VideoWriter_fourcc(*"mp4v"), fps, (w, h))
 
         # Init Object Counter
         counter = object_counter.ObjectCounter()
-        counter.set_args(view_img=True,
-                         reg_pts=line_points,
-                         classes_names=model.names,
-                         draw_tracks=True)
+        counter.set_args(view_img=True, reg_pts=line_points, classes_names=model.names, draw_tracks=True)
 
         while cap.isOpened():
             success, im0 = cap.read()
             if not success:
                 print("Video frame is empty or video processing has been successfully completed.")
                 break
-            tracks = model.track(im0, persist=True, show=False,
-                                 classes=classes_to_count)
+            tracks = model.track(im0, persist=True, show=False, classes=classes_to_count)
 
             im0 = counter.start_counting(im0, tracks)
             video_writer.write(im0)
@@ -173,7 +157,7 @@ Object counting with [Ultralytics YOLOv8](https://github.com/ultralytics/ultraly
 ### Optional Arguments `set_args`
 
 | Name                  | Type        | Default                    | Description                                   |
-|-----------------------|-------------|----------------------------|-----------------------------------------------|
+| --------------------- | ----------- | -------------------------- | --------------------------------------------- |
 | `view_img`            | `bool`      | `False`                    | Display frames with counts                    |
 | `view_in_counts`      | `bool`      | `True`                     | Display incounts only on video frame          |
 | `view_out_counts`     | `bool`      | `True`                     | Display outcounts only on video frame         |
@@ -193,7 +177,7 @@ Object counting with [Ultralytics YOLOv8](https://github.com/ultralytics/ultraly
 ### Arguments `model.track`
 
 | Name      | Type    | Default        | Description                                                 |
-|-----------|---------|----------------|-------------------------------------------------------------|
+| --------- | ------- | -------------- | ----------------------------------------------------------- |
 | `source`  | `im0`   | `None`         | source directory for images or videos                       |
 | `persist` | `bool`  | `False`        | persisting tracks between frames                            |
 | `tracker` | `str`   | `botsort.yaml` | Tracking method 'bytetrack' or 'botsort'                    |

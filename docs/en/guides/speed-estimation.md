@@ -30,7 +30,7 @@ Speed estimation is the process of calculating the rate of movement of an object
 ## Real World Applications
 
 |                                                                     Transportation                                                                      |                                                                      Transportation                                                                       |
-|:-------------------------------------------------------------------------------------------------------------------------------------------------------:|:---------------------------------------------------------------------------------------------------------------------------------------------------------:|
+| :-----------------------------------------------------------------------------------------------------------------------------------------------------: | :-------------------------------------------------------------------------------------------------------------------------------------------------------: |
 | ![Speed Estimation on Road using Ultralytics YOLOv8](https://github.com/RizwanMunawar/ultralytics/assets/62513924/c8a0fd4a-d394-436d-8de3-d5b754755fc7) | ![Speed Estimation on Bridge using Ultralytics YOLOv8](https://github.com/RizwanMunawar/ultralytics/assets/62513924/cee10e02-b268-4304-b73a-5b9cb42da669) |
 |                                                    Speed Estimation on Road using Ultralytics YOLOv8                                                    |                                                    Speed Estimation on Bridge using Ultralytics YOLOv8                                                    |
 
@@ -39,9 +39,10 @@ Speed estimation is the process of calculating the rate of movement of an object
     === "Speed Estimation"
 
         ```python
+        import cv2
+
         from ultralytics import YOLO
         from ultralytics.solutions import speed_estimation
-        import cv2
 
         model = YOLO("yolov8n.pt")
         names = model.model.names
@@ -51,21 +52,15 @@ Speed estimation is the process of calculating the rate of movement of an object
         w, h, fps = (int(cap.get(x)) for x in (cv2.CAP_PROP_FRAME_WIDTH, cv2.CAP_PROP_FRAME_HEIGHT, cv2.CAP_PROP_FPS))
 
         # Video writer
-        video_writer = cv2.VideoWriter("speed_estimation.avi",
-                                       cv2.VideoWriter_fourcc(*'mp4v'),
-                                       fps,
-                                       (w, h))
+        video_writer = cv2.VideoWriter("speed_estimation.avi", cv2.VideoWriter_fourcc(*"mp4v"), fps, (w, h))
 
         line_pts = [(0, 360), (1280, 360)]
 
         # Init speed-estimation obj
         speed_obj = speed_estimation.SpeedEstimator()
-        speed_obj.set_args(reg_pts=line_pts,
-                           names=names,
-                           view_img=True)
+        speed_obj.set_args(reg_pts=line_pts, names=names, view_img=True)
 
         while cap.isOpened():
-
             success, im0 = cap.read()
             if not success:
                 print("Video frame is empty or video processing has been successfully completed.")
@@ -79,7 +74,6 @@ Speed estimation is the process of calculating the rate of movement of an object
         cap.release()
         video_writer.release()
         cv2.destroyAllWindows()
-
         ```
 
 ???+ warning "Speed is Estimate"
@@ -89,7 +83,7 @@ Speed estimation is the process of calculating the rate of movement of an object
 ### Optional Arguments `set_args`
 
 | Name               | Type   | Default                    | Description                                       |
-|--------------------|--------|----------------------------|---------------------------------------------------|
+| ------------------ | ------ | -------------------------- | ------------------------------------------------- |
 | `reg_pts`          | `list` | `[(20, 400), (1260, 400)]` | Points defining the Region Area                   |
 | `names`            | `dict` | `None`                     | Classes names                                     |
 | `view_img`         | `bool` | `False`                    | Display frames with counts                        |
@@ -100,7 +94,7 @@ Speed estimation is the process of calculating the rate of movement of an object
 ### Arguments `model.track`
 
 | Name      | Type    | Default        | Description                                                 |
-|-----------|---------|----------------|-------------------------------------------------------------|
+| --------- | ------- | -------------- | ----------------------------------------------------------- |
 | `source`  | `im0`   | `None`         | source directory for images or videos                       |
 | `persist` | `bool`  | `False`        | persisting tracks between frames                            |
 | `tracker` | `str`   | `botsort.yaml` | Tracking method 'bytetrack' or 'botsort'                    |

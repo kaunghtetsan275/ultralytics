@@ -45,8 +45,7 @@ from ultralytics.models.yolo.detect import DetectionTrainer
 
 
 class CustomTrainer(DetectionTrainer):
-    def get_model(self, cfg, weights):
-        ...
+    def get_model(self, cfg, weights): ...
 
 
 trainer = CustomTrainer(overrides={...})
@@ -64,8 +63,7 @@ from ultralytics.nn.tasks import DetectionModel
 
 
 class MyCustomModel(DetectionModel):
-    def init_criterion(self):
-        ...
+    def init_criterion(self): ...
 
 
 class CustomTrainer(DetectionTrainer):

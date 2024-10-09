@@ -66,7 +66,6 @@ def parse_requirements(file_path=ROOT.parent / "requirements.txt", package=""):
         parse_requirements(package='ultralytics')
         ```
     """
-
     if package:
         requires = [x for x in metadata.distribution(package).requires if "extra == " not in x]
     else:
@@ -359,7 +358,6 @@ def check_requirements(requirements=ROOT.parent / "requirements.txt", exclude=()
         check_requirements(['numpy', 'ultralytics>=8.0.0'])
         ```
     """
-
     prefix = colorstr("red", "bold", "requirements:")
     check_python()  # check python version
     check_torchvision()  # check torch-torchvision compatibility
@@ -414,7 +412,6 @@ def check_torchvision():
     The compatibility table is a dictionary where the keys are PyTorch versions and the values are lists of compatible
     Torchvision versions.
     """
-
     import torchvision
 
     # Compatibility table
@@ -570,7 +567,6 @@ def check_yolo(verbose=True, device=""):
 
 def collect_system_info():
     """Collect and print relevant system information including OS, Python, RAM, CPU, and CUDA."""
-
     import psutil
 
     from ultralytics.utils import ENVIRONMENT, is_git_dir

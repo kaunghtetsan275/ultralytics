@@ -250,7 +250,6 @@ def get_cfg(cfg: Union[str, Path, Dict, SimpleNamespace] = DEFAULT_CFG_DICT, ove
 
 def get_save_dir(args, name=None):
     """Return save_dir as created from train/val/predict arguments."""
-
     if getattr(args, "save_dir", None):
         save_dir = args.save_dir
     else:
@@ -265,7 +264,6 @@ def get_save_dir(args, name=None):
 
 def _handle_deprecation(custom):
     """Hardcoded function to handle deprecated config keys."""
-
     for key in custom.copy().keys():
         if key == "boxes":
             deprecation_warn(key, "show_boxes")
@@ -396,7 +394,7 @@ def handle_yolo_settings(args: List[str]) -> None:
 def handle_explorer():
     """Open the Ultralytics Explorer GUI."""
     checks.check_requirements("streamlit")
-    LOGGER.info(f"💡 Loading Explorer dashboard...")
+    LOGGER.info("💡 Loading Explorer dashboard...")
     subprocess.run(["streamlit", "run", ROOT / "data/explorer/gui/dash.py", "--server.maxMessageSize", "2048"])
 
 

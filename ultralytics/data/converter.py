@@ -115,7 +115,7 @@ def coco91_to_coco80_class():
 
 
 def coco80_to_coco91_class():
-    """
+    r"""
     Converts 80-index (val2014) to 91-index (paper).
     For details see https://tech.amikelive.com/node-718/what-object-categories-labels-are-in-coco-dataset/.
 
@@ -240,7 +240,6 @@ def convert_coco(
     Output:
         Generates output files in the specified output directory.
     """
-
     # Create dataset directory
     save_dir = increment_path(save_dir)  # increment if save directory already exists
     for p in save_dir / "labels", save_dir / "images":
@@ -393,7 +392,7 @@ def convert_dota_to_yolo_obb(dota_root_path: str):
                 normalized_coords = [
                     coords[i] / image_width if i % 2 == 0 else coords[i] / image_height for i in range(8)
                 ]
-                formatted_coords = ["{:.6g}".format(coord) for coord in normalized_coords]
+                formatted_coords = [f"{coord:.6g}" for coord in normalized_coords]
                 g.write(f"{class_idx} {' '.join(formatted_coords)}\n")
 
     for phase in ["train", "val"]:
@@ -501,11 +500,12 @@ def yolo_bbox2segment(im_dir, save_dir=None, sam_model="sam_b.pt"):
                 ├─ ..
                 └─ NNN.txt
     """
-    from ultralytics.data import YOLODataset
-    from ultralytics.utils.ops import xywh2xyxy
-    from ultralytics.utils import LOGGER
-    from ultralytics import SAM
     from tqdm import tqdm
+
+    from ultralytics import SAM
+    from ultralytics.data import YOLODataset
+    from ultralytics.utils import LOGGER
+    from ultralytics.utils.ops import xywh2xyxy
 
     # NOTE: add placeholder to pass class index check
     dataset = YOLODataset(im_dir, data=dict(names=list(range(1000))))

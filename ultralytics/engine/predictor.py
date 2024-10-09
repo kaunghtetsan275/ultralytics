@@ -167,7 +167,7 @@ class BasePredictor:
             frame = getattr(self.dataset, "frame", 0)
         self.data_path = p
         self.txt_path = str(self.save_dir / "labels" / p.stem) + ("" if self.dataset.mode == "image" else f"_{frame}")
-        log_string += "%gx%g " % im.shape[2:]  # print string
+        log_string += "{:g}x{:g} ".format(*im.shape[2:])  # print string
         result = results[idx]
         log_string += result.verbose()
 

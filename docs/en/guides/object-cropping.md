@@ -16,24 +16,24 @@ Object cropping with [Ultralytics YOLOv8](https://github.com/ultralytics/ultraly
 - **Reduced Data Volume**: By extracting only relevant objects, object cropping helps in minimizing data size, making it efficient for storage, transmission, or subsequent computational tasks.
 - **Enhanced Precision**: YOLOv8's object detection accuracy ensures that the cropped objects maintain their spatial relationships, preserving the integrity of the visual information for detailed analysis.
 
-
 ## Visuals
 
-|                                                                               Airport Luggage                                                                                |                                                                                                                         
-|:----------------------------------------------------------------------------------------------------------------------------------------------------------------------------:|
+|                                                                               Airport Luggage                                                                                |
+| :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------: |
 | ![Conveyor Belt at Airport Suitcases Cropping using Ultralytics YOLOv8](https://github.com/RizwanMunawar/RizwanMunawar/assets/62513924/648f46be-f233-4307-a8e5-046eea38d2e4) |
-|                                                     Suitcases Cropping at airport conveyor belt using Ultralytics YOLOv8                                                     |                                                                                                       
-
+|                                                     Suitcases Cropping at airport conveyor belt using Ultralytics YOLOv8                                                     |
 
 !!! Example "Object Cropping using YOLOv8 Example"
 
     === "Object Cropping"
 
         ```python
+        import os
+
+        import cv2
+
         from ultralytics import YOLO
         from ultralytics.utils.plotting import Annotator, colors
-        import cv2
-        import os
 
         model = YOLO("yolov8n.pt")
         names = model.names
@@ -47,9 +47,7 @@ Object cropping with [Ultralytics YOLOv8](https://github.com/ultralytics/ultraly
             os.mkdir(crop_dir_name)
 
         # Video writer
-        video_writer = cv2.VideoWriter("object_cropping_output.avi",
-                                       cv2.VideoWriter_fourcc(*'mp4v'),
-                                       fps, (w, h))
+        video_writer = cv2.VideoWriter("object_cropping_output.avi", cv2.VideoWriter_fourcc(*"mp4v"), fps, (w, h))
 
         idx = 0
         while cap.isOpened():
@@ -68,14 +66,14 @@ Object cropping with [Ultralytics YOLOv8](https://github.com/ultralytics/ultraly
                     idx += 1
                     annotator.box_label(box, color=colors(int(cls), True), label=names[int(cls)])
 
-                    crop_obj = im0[int(box[1]):int(box[3]), int(box[0]):int(box[2])]
+                    crop_obj = im0[int(box[1]) : int(box[3]), int(box[0]) : int(box[2])]
 
-                    cv2.imwrite(os.path.join(crop_dir_name, str(idx)+".png"), crop_obj)
+                    cv2.imwrite(os.path.join(crop_dir_name, str(idx) + ".png"), crop_obj)
 
             cv2.imshow("ultralytics", im0)
             video_writer.write(im0)
 
-            if cv2.waitKey(1) & 0xFF == ord('q'):
+            if cv2.waitKey(1) & 0xFF == ord("q"):
                 break
 
         cap.release()
@@ -86,7 +84,7 @@ Object cropping with [Ultralytics YOLOv8](https://github.com/ultralytics/ultraly
 ### Arguments `model.predict`
 
 | Name            | Type           | Default                | Description                                                                |
-|-----------------|----------------|------------------------|----------------------------------------------------------------------------|
+| --------------- | -------------- | ---------------------- | -------------------------------------------------------------------------- |
 | `source`        | `str`          | `'ultralytics/assets'` | source directory for images or videos                                      |
 | `conf`          | `float`        | `0.25`                 | object confidence threshold for detection                                  |
 | `iou`           | `float`        | `0.7`                  | intersection over union (IoU) threshold for NMS                            |

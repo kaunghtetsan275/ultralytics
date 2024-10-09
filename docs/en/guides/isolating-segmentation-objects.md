@@ -17,11 +17,7 @@ After performing the [Segment Task](../tasks/segment.md), it's sometimes desirab
 1.  Begin with the necessary imports
 
     ```py
-    from pathlib import Path
 
-    import cv2 as cv
-    import numpy as np
-    from ultralytics import YOLO
     ```
 
     ???+ tip "Ultralytics Install"
@@ -36,7 +32,7 @@ After performing the [Segment Task](../tasks/segment.md), it's sometimes desirab
     from ultralytics import YOLO
 
     # Load a model
-    model = YOLO('yolov8n-seg.pt')
+    model = YOLO("yolov8n-seg.pt")
 
     # Run inference
     result = model.predict()
@@ -63,13 +59,12 @@ After performing the [Segment Task](../tasks/segment.md), it's sometimes desirab
     # (2) Iterate detection results (helpful for multiple images)
     for r in res:
         img = np.copy(r.orig_img)
-        img_name = Path(r.path).stem # source image base-name
+        img_name = Path(r.path).stem  # source image base-name
 
         # Iterate each object contour (multiple detections)
-        for ci,c in enumerate(r):
+        for ci, c in enumerate(r):
             # (1) Get detection class name
             label = c.names[c.boxes.cls.tolist().pop()]
-
     ```
 
     1. To learn more about working with detection results, see [Boxes Section for Predict Mode](../modes/predict.md#boxes).
@@ -98,12 +93,7 @@ After performing the [Segment Task](../tasks/segment.md), it's sometimes desirab
 
 
     # Draw contour onto mask
-    _ = cv.drawContours(b_mask,
-                        [contour],
-                        -1,
-                        (255, 255, 255),
-                        cv.FILLED)
-
+    _ = cv.drawContours(b_mask, [contour], -1, (255, 255, 255), cv.FILLED)
     ```
 
     1. For more info on `c.masks.xy` see [Masks Section from Predict Mode](../modes/predict.md#masks).
@@ -159,7 +149,6 @@ After performing the [Segment Task](../tasks/segment.md), it's sometimes desirab
 
             # Isolate object with binary mask
             isolated = cv.bitwise_and(mask3ch, img)
-
             ```
 
             ??? question "How does this work?"
@@ -209,7 +198,6 @@ After performing the [Segment Task](../tasks/segment.md), it's sometimes desirab
             ```py
             # Isolate object with transparent background (when saved as PNG)
             isolated = np.dstack([img, b_mask])
-
             ```
 
             ??? question "How does this work?"
@@ -266,7 +254,7 @@ After performing the [Segment Task](../tasks/segment.md), it's sometimes desirab
 
         ```py
         # Save isolated object to file
-        _ = cv.imwrite(f'{img_name}_{label}-{ci}.png', iso_crop)
+        _ = cv.imwrite(f"{img_name}_{label}-{ci}.png", iso_crop)
         ```
 
         - In this example, the `img_name` is the base-name of the source image file, `label` is the detected class-name, and `ci` is the index of the object detection (in case of multiple instances with the same class name).
@@ -280,10 +268,11 @@ from pathlib import Path
 
 import cv2 as cv
 import numpy as np
+
 from ultralytics import YOLO
 
-m = YOLO('yolov8n-seg.pt')#(4)!
-res = m.predict()#(3)!
+m = YOLO("yolov8n-seg.pt")  # (4)!
+res = m.predict()  # (3)!
 
 # iterate detection results (5)
 for r in res:
@@ -291,7 +280,7 @@ for r in res:
     img_name = Path(r.path).stem
 
     # iterate each object contour (6)
-    for ci,c in enumerate(r):
+    for ci, c in enumerate(r):
         label = c.names[c.boxes.cls.tolist().pop()]
 
         b_mask = np.zeros(img.shape[:2], np.uint8)
@@ -314,7 +303,6 @@ for r in res:
         iso_crop = isolated[y1:y2, x1:x2]
 
         # TODO your actions go here (2)
-
 ```
 
 1. The line populating `contour` is combined into a single line here, where it was split to multiple above.

@@ -59,12 +59,12 @@ Train YOLOv8n on the COCO128 dataset for 100 epochs at image size 640. The train
         from ultralytics import YOLO
 
         # Load a model
-        model = YOLO('yolov8n.yaml')  # build a new model from YAML
-        model = YOLO('yolov8n.pt')  # load a pretrained model (recommended for training)
-        model = YOLO('yolov8n.yaml').load('yolov8n.pt')  # build from YAML and transfer weights
+        model = YOLO("yolov8n.yaml")  # build a new model from YAML
+        model = YOLO("yolov8n.pt")  # load a pretrained model (recommended for training)
+        model = YOLO("yolov8n.yaml").load("yolov8n.pt")  # build from YAML and transfer weights
 
         # Train the model
-        results = model.train(data='coco128.yaml', epochs=100, imgsz=640)
+        results = model.train(data="coco128.yaml", epochs=100, imgsz=640)
         ```
 
     === "CLI"
@@ -94,10 +94,10 @@ Multi-GPU training allows for more efficient utilization of available hardware r
         from ultralytics import YOLO
 
         # Load a model
-        model = YOLO('yolov8n.pt')  # load a pretrained model (recommended for training)
+        model = YOLO("yolov8n.pt")  # load a pretrained model (recommended for training)
 
         # Train the model with 2 GPUs
-        results = model.train(data='coco128.yaml', epochs=100, imgsz=640, device=[0, 1])
+        results = model.train(data="coco128.yaml", epochs=100, imgsz=640, device=[0, 1])
         ```
 
     === "CLI"
@@ -121,10 +121,10 @@ To enable training on Apple M1 and M2 chips, you should specify 'mps' as your de
         from ultralytics import YOLO
 
         # Load a model
-        model = YOLO('yolov8n.pt')  # load a pretrained model (recommended for training)
+        model = YOLO("yolov8n.pt")  # load a pretrained model (recommended for training)
 
         # Train the model with 2 GPUs
-        results = model.train(data='coco128.yaml', epochs=100, imgsz=640, device='mps')
+        results = model.train(data="coco128.yaml", epochs=100, imgsz=640, device="mps")
         ```
 
     === "CLI"
@@ -154,7 +154,7 @@ Below is an example of how to resume an interrupted training using Python and vi
         from ultralytics import YOLO
 
         # Load a model
-        model = YOLO('path/to/last.pt')  # load a partially trained model
+        model = YOLO("path/to/last.pt")  # load a partially trained model
 
         # Resume training
         results = model.train(resume=True)
@@ -176,7 +176,7 @@ Remember that checkpoints are saved at the end of every epoch by default, or at 
 The training settings for YOLO models encompass various hyperparameters and configurations used during the training process. These settings influence the model's performance, speed, and accuracy. Key training settings include batch size, learning rate, momentum, and weight decay. Additionally, the choice of optimizer, loss function, and training dataset composition can impact the training process. Careful tuning and experimentation with these settings are crucial for optimizing performance.
 
 | Argument          | Default  | Description                                                                                                                                                                                                          |
-|-------------------|----------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| ----------------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `model`           | `None`   | Specifies the model file for training. Accepts a path to either a `.pt` pretrained model or a `.yaml` configuration file. Essential for defining the model structure or initializing weights.                        |
 | `data`            | `None`   | Path to the dataset configuration file (e.g., `coco128.yaml`). This file contains dataset-specific parameters, including paths to training and validation data, class names, and number of classes.                  |
 | `epochs`          | `100`    | Total number of training epochs. Each epoch represents a full pass over the entire dataset. Adjusting this value can affect training duration and model performance.                                                 |
@@ -231,7 +231,7 @@ The training settings for YOLO models encompass various hyperparameters and conf
 Augmentation techniques are essential for improving the robustness and performance of YOLO models by introducing variability into the training data, helping the model generalize better to unseen data. The following table outlines the purpose and effect of each augmentation argument:
 
 | Argument       | Type    | Default       | Range         | Description                                                                                                                                                               |
-|----------------|---------|---------------|---------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| -------------- | ------- | ------------- | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `hsv_h`        | `float` | `0.015`       | `0.0 - 1.0`   | Adjusts the hue of the image by a fraction of the color wheel, introducing color variability. Helps the model generalize across different lighting conditions.            |
 | `hsv_s`        | `float` | `0.7`         | `0.0 - 1.0`   | Alters the saturation of the image by a fraction, affecting the intensity of colors. Useful for simulating different environmental conditions.                            |
 | `hsv_v`        | `float` | `0.4`         | `0.0 - 1.0`   | Modifies the value (brightness) of the image by a fraction, helping the model to perform well under various lighting conditions.                                          |

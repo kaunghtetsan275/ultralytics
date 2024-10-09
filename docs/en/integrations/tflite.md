@@ -16,7 +16,7 @@ The TensorFlow Lite or TFLite export format allows you to optimize your [Ultraly
   <img width="100%" src="https://2.bp.blogspot.com/-mNcMMMsyQCc/XpT0ReRUTBI/AAAAAAAAC-g/-yQX6bCqbxEuSAlDNSUPQkytsn6Ml8qrQCLcBGAsYHQ/s1600/Screen%2BShot%2B2020-04-13%2Bat%2B4.22.27%2BPM.png" alt="TFLite Logo">
 </p>
 
-Introduced by Google in May 2017 as part of their TensorFlow framework, [TensorFlow Lite](https://www.tensorflow.org/lite/guide), or TFLite for short, is an open-source deep learning framework designed for on-device inference, also known as edge computing. It gives developers the necessary tools to execute their trained models on mobile, embedded, and IoT devices, as well as traditional computers. 
+Introduced by Google in May 2017 as part of their TensorFlow framework, [TensorFlow Lite](https://www.tensorflow.org/lite/guide), or TFLite for short, is an open-source deep learning framework designed for on-device inference, also known as edge computing. It gives developers the necessary tools to execute their trained models on mobile, embedded, and IoT devices, as well as traditional computers.
 
 TensorFlow Lite is compatible with a wide range of platforms, including embedded Linux, Android, iOS, and MCU. Exporting your model to TFLite makes your applications faster, more reliable, and capable of running offline.
 
@@ -38,15 +38,15 @@ Before we look at the code for exporting YOLOv8 models to the TFLite format, let
 
 TFLite offers various on-device deployment options for machine learning models, including:
 
- - **Deploying with Android and iOS**: Both Android and iOS applications with TFLite can analyze edge-based camera feeds and sensors to detect and identify objects. TFLite also offers native iOS libraries written in [Swift](https://github.com/tensorflow/tensorflow/tree/master/tensorflow/lite/swift) and [Objective-C](https://github.com/tensorflow/tensorflow/tree/master/tensorflow/lite/objc). The architecture diagram below shows the process of deploying a trained model onto Android and iOS platforms using TensorFlow Lite.
+- **Deploying with Android and iOS**: Both Android and iOS applications with TFLite can analyze edge-based camera feeds and sensors to detect and identify objects. TFLite also offers native iOS libraries written in [Swift](https://github.com/tensorflow/tensorflow/tree/master/tensorflow/lite/swift) and [Objective-C](https://github.com/tensorflow/tensorflow/tree/master/tensorflow/lite/objc). The architecture diagram below shows the process of deploying a trained model onto Android and iOS platforms using TensorFlow Lite.
 
  <p align="center">
   <img width="100%" src="https://1.bp.blogspot.com/-6fS9FD8KD7g/XhJ1l8y2S4I/AAAAAAAACKw/MW9MQZ8gtiYmUe0naRdN0n2FwkT1l4trACLcBGAsYHQ/s1600/architecture.png" alt="Architecture">
 </p>
 
- - **Implementing with Embedded Linux**: If running inferences on a [Raspberry Pi](https://www.raspberrypi.org/) using the [Ultralytics Guide](../guides/raspberry-pi.md) does not meet the speed requirements for your use case, you can use an exported TFLite model to accelerate inference times. Additionally, it's possible to further improve performance by utilizing a [Coral Edge TPU device]((https://coral.withgoogle.com/)).
+- **Implementing with Embedded Linux**: If running inferences on a [Raspberry Pi](https://www.raspberrypi.org/) using the [Ultralytics Guide](../guides/raspberry-pi.md) does not meet the speed requirements for your use case, you can use an exported TFLite model to accelerate inference times. Additionally, it's possible to further improve performance by utilizing a [Coral Edge TPU device](<(https://coral.withgoogle.com/)>).
 
- - **Deploying with Microcontrollers**: TFLite models can also be deployed on microcontrollers and other devices with only a few kilobytes of memory. The core runtime just fits in 16 KB on an Arm Cortex M3 and can run many basic models. It doesn't require operating system support, any standard C or C++ libraries, or dynamic memory allocation.
+- **Deploying with Microcontrollers**: TFLite models can also be deployed on microcontrollers and other devices with only a few kilobytes of memory. The core runtime just fits in 16 KB on an Arm Cortex M3 and can run many basic models. It doesn't require operating system support, any standard C or C++ libraries, or dynamic memory allocation.
 
 ## Export to TFLite: Converting Your YOLOv8 Model
 
@@ -69,7 +69,7 @@ For detailed instructions and best practices related to the installation process
 
 ### Usage
 
-Before diving into the usage instructions, it's important to note that while all [Ultralytics YOLOv8 models]((../models/index.md)) are available for exporting, you can ensure that the model you select supports export functionality [here](../modes/export.md).
+Before diving into the usage instructions, it's important to note that while all [Ultralytics YOLOv8 models](<(../models/index.md)>) are available for exporting, you can ensure that the model you select supports export functionality [here](../modes/export.md).
 
 !!! Example "Usage"
 
@@ -77,18 +77,18 @@ Before diving into the usage instructions, it's important to note that while all
 
           ```python
           from ultralytics import YOLO
-          
+
           # Load the YOLOv8 model
-          model = YOLO('yolov8n.pt')
-          
+          model = YOLO("yolov8n.pt")
+
           # Export the model to TFLite format
-          model.export(format='tflite') # creates 'yolov8n_float32.tflite'
-          
+          model.export(format="tflite")  # creates 'yolov8n_float32.tflite'
+
           # Load the exported TFLite model
-          tflite_model = YOLO('yolov8n_float32.tflite')
-          
+          tflite_model = YOLO("yolov8n_float32.tflite")
+
           # Run inference
-          results = tflite_model('https://ultralytics.com/images/bus.jpg')
+          results = tflite_model("https://ultralytics.com/images/bus.jpg")
           ```
 
     === "CLI"
@@ -96,7 +96,7 @@ Before diving into the usage instructions, it's important to note that while all
           ```bash
           # Export a YOLOv8n PyTorch model to TFLite format
           yolo export model=yolov8n.pt format=tflite  # creates 'yolov8n_float32.tflite'
-          
+
           # Run inference with the exported model
           yolo predict model='yolov8n_float32.tflite' source='https://ultralytics.com/images/bus.jpg'
           ```
@@ -107,11 +107,11 @@ For more details about the export process, visit the [Ultralytics documentation 
 
 After successfully exporting your Ultralytics YOLOv8 models to TFLite format, you can now deploy them. The primary and recommended first step for running a TFLite model is to utilize the YOLO("model.tflite") method, as outlined in the previous usage code snippet. However, for in-depth instructions on deploying your TFLite models in various other settings, take a look at the following resources:
 
- - **[Android](https://www.tensorflow.org/lite/android/quickstart)**: A quick start guide for integrating TensorFlow Lite into Android applications, providing easy-to-follow steps for setting up and running machine learning models. 
+- **[Android](https://www.tensorflow.org/lite/android/quickstart)**: A quick start guide for integrating TensorFlow Lite into Android applications, providing easy-to-follow steps for setting up and running machine learning models.
 
- - **[iOS](https://www.tensorflow.org/lite/guide/ios)**: Check out this detailed guide for developers on integrating and deploying TensorFlow Lite models in iOS applications, offering step-by-step instructions and resources.
+- **[iOS](https://www.tensorflow.org/lite/guide/ios)**: Check out this detailed guide for developers on integrating and deploying TensorFlow Lite models in iOS applications, offering step-by-step instructions and resources.
 
- - **[End-To-End Examples](https://www.tensorflow.org/lite/examples)**: This page provides an overview of various TensorFlow Lite examples, showcasing practical applications and tutorials designed to help developers implement TensorFlow Lite in their machine learning projects on mobile and edge devices.
+- **[End-To-End Examples](https://www.tensorflow.org/lite/examples)**: This page provides an overview of various TensorFlow Lite examples, showcasing practical applications and tutorials designed to help developers implement TensorFlow Lite in their machine learning projects on mobile and edge devices.
 
 ## Summary
 
